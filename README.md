@@ -1,168 +1,158 @@
 # Bilibili Transcript
 
-Transcribe Bilibili livestream recordings to text using speech recognition.
+Transcribe Bilibili videos and livestream recordings to text using Whisper.
 
 ## Features
 
-- Downloads audio-only from Bilibili video URLs (lightweight)
-- Transcribes Chinese speech using Whisper
-- Generates multiple output formats:
-  - Plain text
-  - Text with timestamps
-  - JSON with metadata
-  - WebVTT subtitles
-- Runs locally (no cloud API required)
-- Extensible architecture (swap scraper, parser, or models)
+- **Single Video Mode**: Process individual video URLs
+- **Collection Mode**: Batch process entire collections/series
+- **Resume Support**: Automatically resumes interrupted batch processing
+- **Progress Tracking**: Persistent progress file tracks completed, failed, and skipped videos
+- **Graceful Cancellation**: Press Ctrl+C to stop after current video completes
+- **Smart Skipping**: Automatically skips videos with existing transcripts
 
-## Quick Start
-
-### Setup
+## Installation
 
 ```bash
-# Install uv if not already installed
-# https://docs.astral.sh/uv/
-
-# Sync dependencies
-uv sync
-
-# Activate virtual environment
-.venv\Scripts\activate  # Windows
-# or
-source .venv/bin/activate  # macOS/Linux
+# Install with uv
+uv pip install -e .
 ```
 
-### Usage
+## Usage
 
-Edit `run.py` and set your video URL:
+### Single Video
 
-```python
-VIDEO_URL = "https://www.bilibili.com/video/BVxxxxxx/"
-```
-
-Then run:
+Process one video at a time:
 
 ```bash
-python run.py
+python -m bilibili_transcript.main --video "https://www.bilibili.com/video/BV1xx411c7mD"
 ```
 
-Transcripts will be saved to `data/transcripts/`.
+### Collection Processing
 
-## Architecture
+Process all videos in a collection/series:
 
-The codebase is organized for extensibility:
-
-```
-src/bilibili_transcript/
-├── scraper.py        # Audio download (yt-dlp wrapper)
-├── parser.py         # Transcription (Whisper wrapper)
-├── orchestrator.py   # Coordination & I/O
-└── main.py          # CLI entry point
+```bash
+python -m bilibili_transcript.main --collection "https://space.bilibili.com/45502/lists/31284?type=series"
 ```
 
-### Components
+The tool will:
+1. Fetch all video URLs from the collection (handles pagination automatically)
+2. Process each video sequentially
+3. Save progress after each video
+4. Skip videos that already have transcripts (unless `--no-skip-existing` is used)
 
-- **Scraper**: Handles video URL → audio file
-  - Currently: `yt-dlp` for Bilibili
-  - Future: Add other platforms, API-based sources
-  
-- **Parser**: Handles audio file → transcript
-  - Currently: `faster-whisper` (local)
-  - Future: Swap to cloud APIs (OpenAI, Google, etc.)
-  
-- **Orchestrator**: Wires components together
-  - Manages workflow, error handling, I/O
-  - Extensible for batch processing
+### Resume Interrupted Processing
 
-## Configuration
+If processing is interrupted (Ctrl+C, error, or system shutdown), simply run the same command again:
 
-Edit `run.py` to change:
-
-- **Model size**: `tiny`, `base`, `small`, `medium`, `large`
-  - Smaller = faster but less accurate
-  - Larger = slower but more accurate
-  
-- **Device**: `cpu` or `cuda` (if GPU available)
-  - GPU is ~5-10x faster
-
-- **Output directory**: Where transcripts are saved
-
-## Output Formats
-
-Each video generates 4 files with the video title and timestamp:
-
-1. `title_20261014_120000.txt` — Plain text only
-2. `title_20261014_120000_with_ts.txt` — Text with [HH:MM:SS] timestamps
-3. `title_20261014_120000.json` — Full metadata including segments
-4. `title_20261014_120000.vtt` — WebVTT subtitle format
-
-## Model Information
-
-Whisper base model:
-- ~75 MB download
-- ~1 GB RAM required
-- ~2-4x real-time on CPU
-- Good Chinese accuracy
-
-For better accuracy, use `medium` (~1.5 GB) or `large` (~3 GB).
-
-## Extending
-
-### Add a new scraper (e.g., YouTube)
-
-Create a new class in `scraper.py`:
-
-```python
-class YouTubeScraper(AudioScraper):
-    def download_audio(self, url: str) -> AudioSource:
-        # Custom implementation
-        pass
+```bash
+python -m bilibili_transcript.main --collection "https://space.bilibili.com/45502/lists/31284?type=series"
 ```
 
-### Add a new parser (e.g., OpenAI API)
+The tool will:
+- Load the progress file (`.batch_progress.json`)
+- Skip already-completed videos
+- Continue from where it left off
 
-Create a new class in `parser.py`:
+### Options
 
-```python
-class OpenAIParser(WhisperParser):
-    def transcribe(self, audio_path: Path) -> Transcript:
-        # Call OpenAI API
-        pass
+```
+--output-dir PATH          Output directory (default: data/transcripts)
+--model-size SIZE          Whisper model: tiny, base, small, medium, large (default: base)
+--device DEVICE            Device: cpu, cuda (default: cpu)
+--language LANG            Language code (default: zh)
+--no-skip-existing         Reprocess videos even if transcripts exist
 ```
 
-Then swap in `orchestrator.py`:
+## Output Structure
 
-```python
-self.parser = OpenAIParser(parser_config)
+Transcripts are organized by video:
+
+```
+data/transcripts/
+├── .batch_progress.json          # Progress tracking (collection mode only)
+├── BV1xx411c7mD/                 # Video directory
+│   ├── transcript.json           # Structured transcript data
+│   ├── transcript.txt            # Plain text transcript
+│   └── transcript.vtt            # WebVTT subtitle format
+└── BV1nWpz6zE4U/
+    ├── transcript.json
+    ├── transcript.txt
+    └── transcript.vtt
 ```
 
-## Troubleshooting
+## Progress File
 
-**"yt-dlp: command not found"**
-- Ensure uv sync completed successfully
-- Try: `pip install yt-dlp` manually
+In collection mode, a `.batch_progress.json` file tracks:
+- `collection_url`: The collection being processed
+- `completed`: List of successfully processed video URLs
+- `failed`: List of failed videos with error messages
+- `skipped`: List of skipped videos with reasons
+- `last_updated`: Timestamp of last update
 
-**"Whisper model download fails"**
-- Check internet connection
-- Models cache in `~/.cache/huggingface/`
+Example:
+```json
+{
+  "collection_url": "https://space.bilibili.com/45502/lists/31284?type=series",
+  "total_videos": 1349,
+  "completed": [
+    "https://www.bilibili.com/video/BV1nWpz6zE4U",
+    "https://www.bilibili.com/video/BV1SmHy6eEbg"
+  ],
+  "failed": [
+    {
+      "url": "https://www.bilibili.com/video/BV1xxx",
+      "error": "Download failed",
+      "timestamp": "2026-10-14T10:30:00"
+    }
+  ],
+  "skipped": [],
+  "last_updated": "2026-10-14T10:35:00"
+}
+```
 
-**"Out of memory"**
-- Use smaller model: `tiny` or `base`
-- Or use GPU: set `device="cuda"`
+## Cancellation
+
+Press **Ctrl+C** once to trigger graceful shutdown:
+- Current video will finish processing
+- Progress is saved automatically
+- Run the same command to resume
+
+## Examples
+
+```bash
+# Process collection with default settings (base model, CPU)
+python -m bilibili_transcript.main --collection "https://space.bilibili.com/45502/lists/31284?type=series"
+
+# Use larger model for better accuracy
+python -m bilibili_transcript.main \
+  --collection "https://space.bilibili.com/45502/lists/31284?type=series" \
+  --model-size medium
+
+# Use GPU acceleration
+python -m bilibili_transcript.main \
+  --collection "https://space.bilibili.com/45502/lists/31284?type=series" \
+  --device cuda
+
+# Force reprocess everything (ignore existing transcripts)
+python -m bilibili_transcript.main \
+  --collection "https://space.bilibili.com/45502/lists/31284?type=series" \
+  --no-skip-existing
+
+# Process single video with custom output directory
+python -m bilibili_transcript.main \
+  --video "https://www.bilibili.com/video/BV1xx411c7mD" \
+  --output-dir ./my_transcripts
+```
 
 ## Requirements
 
-- Python 3.9+
-- yt-dlp (audio download)
-- faster-whisper (transcription)
-- 1+ GB free disk space
-- Stable internet (for Bilibili, model downloads)
+- Python >= 3.9
+- yt-dlp (for video download)
+- faster-whisper (for transcription)
+- ffmpeg (for audio processing)
 
-## Future Enhancements
+## License
 
-- [ ] Batch processing (process multiple videos)
-- [ ] Queue system for rate limiting
-- [ ] Database storage instead of files
-- [ ] Web UI for management
-- [ ] Cloud API support (OpenAI, Google, Assembly AI)
-- [ ] Post-processing (punctuation, formatting)
-- [ ] Translation to English/other languages
+MIT
