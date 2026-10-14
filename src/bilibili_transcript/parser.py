@@ -8,14 +8,6 @@ from dataclasses import dataclass, field
 from typing import Optional, List
 from datetime import timedelta
 
-try:
-    from faster_whisper import WhisperModel
-except ImportError:
-    raise ImportError(
-        "faster-whisper not installed. Install with: pip install faster-whisper"
-    )
-
-
 @dataclass
 class TranscriptSegment:
     """A single segment of transcript with timing."""
@@ -86,11 +78,15 @@ class ParserConfig:
         device: str = "cpu",
         language: str = "zh",
         compute_type: str = "default",
+        beam_size: int = 5,
+        vad_filter: bool = False,
     ):
         self.model_size = model_size  # tiny, base, small, medium, large
         self.device = device  # cpu, cuda, auto
         self.language = language  # zh for Chinese
         self.compute_type = compute_type  # default, auto, int8, float16, etc
+        self.beam_size = beam_size
+        self.vad_filter = vad_filter
 
 
 class WhisperParser:
@@ -98,11 +94,12 @@ class WhisperParser:
 
     def __init__(self, config: Optional[ParserConfig] = None):
         self.config = config or ParserConfig()
-        self._model: Optional[WhisperModel] = None
+        self._model = None
 
-    def _load_model(self) -> WhisperModel:
+    def _load_model(self):
         """Lazy load model on first use."""
         if self._model is None:
+            from faster_whisper import WhisperModel
             print(
                 f"Loading Whisper {self.config.model_size} model on {self.config.device}..."
             )
@@ -113,7 +110,7 @@ class WhisperParser:
             )
         return self._model
 
-    def transcribe(self, audio_path: Path) -> Transcript:
+    def transcribe(self, audio_path: Path, progress=None) -> Transcript:
         """
         Transcribe audio file to text.
 
@@ -137,15 +134,19 @@ class WhisperParser:
             segments, info = model.transcribe(
                 str(audio_path),
                 language=self.config.language,
+                beam_size=self.config.beam_size,
+                vad_filter=self.config.vad_filter,
             )
 
             transcript = Transcript(
                 title=audio_path.stem,
                 url="",
-                language=self.config.language,
+                language=info.language,
             )
 
             for segment in segments:
+                if progress:
+                    progress(segment.end, info.duration)
                 transcript.segments.append(
                     TranscriptSegment(
                         start=segment.start,

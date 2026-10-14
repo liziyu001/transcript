@@ -1,4 +1,124 @@
-# Bilibili Transcript
+# Transcript Studio
+
+A local resource library and job-control website for Bilibili audio and transcripts.
+The existing command-line tools remain available below.
+
+## Start with Docker Compose
+
+```bash
+docker compose up -d --build
+```
+
+Open **http://localhost:8000**. No npm build or local Python/FFmpeg installation is
+needed for Docker. The first build needs access to Docker Hub, GHCR, PyPI, and the
+Debian package repositories. The first transcription with each model downloads
+weights from Hugging Face; subsequent jobs reuse the persistent model cache.
+
+The supplied image uses **CPU + int8**. Start with `tiny` or `base`; larger models
+use substantially more memory. Selecting CUDA in the UI is intended for a local
+environment with compatible NVIDIA libraries; the supplied image does not include
+a CUDA runtime or GPU Compose configuration.
+
+```bash
+docker compose logs -f studio   # application logs
+docker compose down            # stop; library and files are retained
+docker compose up -d --build    # rebuild after updating the checkout
+```
+
+Set `STUDIO_PORT` in your environment or a local `.env` file to change port 8000.
+The service binds to your computer's loopback address. It is a personal tool with
+no login system; keep that binding for personal use.
+
+### Everyday workflow
+
+1. **Add resources → Paste video links:** enter one full Bilibili video URL per
+   line. Records go into **General**. Share parameters are removed and duplicate
+   URLs are deduplicated. Multipart videos are handled as one resource containing
+   multiple audio/transcript parts. Short links are not supported; paste their
+   expanded `/video/BV…` or `/video/av…` URL.
+2. **Add resources → Import a collection:** name it and paste a
+   `https://space.bilibili.com/USER/lists/ID?type=series` or `?type=season` URL.
+   A discovery job resolves all pages and adds records to the collection. Repeat
+   an import to discover additions. A resource can belong to multiple collections.
+3. Select records and choose **Download**, **Parse**, **Export**, or **Full pipeline**.
+   Parse requires downloaded audio; export requires saved transcript data. Full
+   pipeline supplies those prerequisites automatically.
+4. Enable **Dry run** in the job dialog to see the planned steps and prerequisite
+   problems without network requests, media downloads, model loading, or resource
+   changes. Discovery dry runs validate the URL and show the discovery plan; they
+   do not enumerate remote videos. Dry-run jobs themselves are saved in history.
+5. Open **Job queue** for per-resource progress, errors, activity, settings snapshots,
+   and worker logs. **Pause** finishes the current resource before pausing.
+   **Cancel** terminates the active child process. **Resume** continues paused work;
+   **Retry incomplete** retries failed/cancelled items and preserves completed ones.
+6. Click a resource title to listen to audio, preview transcript files, and download
+   TXT, VTT, SRT, or JSON output. Use **Configuration** to change downloader,
+   parser, and export defaults for future jobs.
+
+Settings are captured when jobs are queued. Existing audio/transcripts are reused
+unless **Reprocess existing results** is selected. To apply a new parser model to
+an existing transcript, queue Parse with reprocessing enabled. Export always writes
+a new version, so output changes never require rerunning Whisper.
+
+### Local development
+
+```bash
+uv sync --extra dev
+uv run transcript-web
+# Open http://localhost:8000
+
+npm run check
+uv run pytest -q tests audio-scraper/tests
+```
+
+FFmpeg must be on PATH for local audio conversion. The browser UI uses plain
+HTML/CSS/JavaScript and is served by FastAPI; npm is only needed for the optional
+JavaScript syntax check. Python dependencies are locked in `uv.lock`.
+
+Environment variables: `TRANSCRIPT_DATA_DIR` (default `data/control-center`),
+`HOST` (default `127.0.0.1`), `PORT` (default `8000`), and `HF_HOME` for model cache
+location. Run **one application instance/worker per data directory**. API reference:
+http://localhost:8000/docs (OpenAPI schema: `/openapi.json`).
+
+### Persistence and recovery
+
+Compose creates named volumes `studio-data` and `whisper-models` (prefixed by the
+Compose project name). The data volume contains:
+
+```text
+/data/
+  library.sqlite3          # collections, memberships, settings, jobs, item checkpoints
+  audio/<resource>/job-N/  # persistent audio parts
+  parsed/<resource>/      # canonical transcript JSON, independent of export formats
+  exports/<resource>/job-N/# versioned readable output files
+  logs/                   # per-item subprocess logs
+```
+
+Stop the service before backing up the complete data volume, and restore it at
+the same `/data` path. Do not use `docker compose down -v` unless you intend to
+delete the library and model cache. Old artifact versions and logs remain on disk;
+this small personal tool does not automatically prune them.
+
+After a restart, interrupted jobs become **paused** and retain completed items.
+Explicitly resume them in the UI. A killed transcription restarts the current
+resource, rather than resuming within a speech segment. Partial writes are not
+registered as completed artifacts. New downloads and exports use versioned paths;
+failed reprocessing leaves the last registered results available. Newly queued
+jobs continue automatically.
+
+Architecture: `web/store.py` owns persistence, `web/worker.py` owns scheduling and
+process lifecycle, `web/stages.py` adapts discovery/download/parser operations,
+`web/output.py` renders saved transcript data, and `web/app.py` exposes the API and
+UI. One sequential worker keeps model memory use predictable. A failed resource
+does not stop the remaining resources in a batch. Progress is polled every two
+seconds; model initialization has an explanatory status rather than an invented
+percentage. A failed collection import does not register a partial collection.
+
+Bilibili access restrictions/rate limits are reported as job errors. This version
+does not include cookie login or automatic import of legacy CLI output folders.
+The existing CLI and its data remain independent.
+
+## Legacy command-line tools
 
 Transcribe Bilibili videos and livestream recordings to text using Whisper.
 

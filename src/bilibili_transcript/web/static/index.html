@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Transcript Studio</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23e87946'/%3E%3Cpath d='M8 10h16M16 10v15' stroke='white' stroke-width='3'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="#library"
+        ><span class="brand-mark">T<span>•</span></span
+        ><span
+          >Transcript<span class="brand-sub">PERSONAL STUDIO</span></span
+        ></a
+      >
+      <div class="workspace">
+        <span class="workspace-icon">P</span>
+        <div>Personal workspace<small>Local library</small></div>
+        <span class="local-dot"></span>
+      </div>
+      <p class="nav-label">WORKSPACE</p>
+      <nav aria-label="Main navigation">
+        <button data-nav="library" class="nav-item active">
+          <span>▦</span>Resource center
+          <span id="library-count" class="nav-count">0</span>
+        </button>
+        <button data-nav="jobs" class="nav-item">
+          <span>☷</span>Job queue
+          <span id="queue-count" class="nav-count">0</span>
+        </button>
+        <button data-nav="settings" class="nav-item">
+          <span>⚙</span>Configuration
+        </button>
+      </nav>
+      <div class="collection-heading">
+        <p class="nav-label">COLLECTIONS</p>
+        <button
+          class="icon-button"
+          id="new-collection"
+          aria-label="Import a collection"
+        >
+          +
+        </button>
+      </div>
+      <div id="collections"></div>
+      <div class="sidebar-foot">
+        <span class="status-dot" id="connection-dot"></span
+        ><span id="connection">Connecting…</span
+        ><small>Stored on your machine</small>
+      </div>
+    </aside>
+    <main>
+      <header class="topbar">
+        <span
+          >Workspace <span class="breadcrumb">/</span>
+          <strong id="breadcrumb">Resource center</strong></span
+        ><span class="local-tag">◉ &nbsp; LOCAL FIRST</span>
+      </header>
+      <section id="library-view" class="view">
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">YOUR MEDIA, ORGANIZED</div>
+            <h1 id="library-title">Resource center</h1>
+            <p>Collect the sources. Let the words follow.</p>
+          </div>
+          <button id="import-open" class="primary">
+            ＋ &nbsp; Add resources
+          </button>
+        </div>
+        <div id="stats" class="stats"></div>
+        <div class="library-panel">
+          <div class="panel-top">
+            <div class="tabs">
+              <button class="tab active" data-filter="all">All resources</button
+              ><button class="tab" data-filter="ready">Audio ready</button
+              ><button class="tab" data-filter="parsed">Transcribed</button>
+            </div>
+            <label class="search"
+              ><span>⌕</span
+              ><input
+                id="search"
+                type="search"
+                placeholder="Search title or URL"
+                aria-label="Search resources"
+            /></label>
+          </div>
+          <div class="selection-bar">
+            <select id="mobile-collection" aria-label="Filter collection">
+              <option value="">All collections</option>
+            </select>
+            <span id="selection-label">Select resources to start a job</span>
+            <div class="actions">
+              <button data-stage="download" disabled>
+                ↓ <span>Download</span></button
+              ><button data-stage="parse" disabled>≋ <span>Parse</span></button
+              ><button data-stage="export" disabled>
+                ↗ <span>Export</span></button
+              ><button data-stage="pipeline" class="dark" disabled>
+                ▶ <span>Full pipeline</span>
+              </button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="check-cell">
+                    <input
+                      id="select-all"
+                      type="checkbox"
+                      aria-label="Select all filtered resources"
+                    />
+                  </th>
+                  <th>RESOURCE</th>
+                  <th>COLLECTION</th>
+                  <th>AUDIO</th>
+                  <th>TRANSCRIPT</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="resource-rows"></tbody>
+            </table>
+          </div>
+          <div id="library-empty" class="empty" hidden>
+            <div class="empty-icon">▤</div>
+            <h2>A home for your next transcript</h2>
+            <p>
+              Add a Bilibili collection or paste video links.<br />Download and
+              transcribe them whenever you’re ready.
+            </p>
+            <button class="primary" id="empty-import">
+              ＋ Add your first resources
+            </button>
+            <div class="empty-flow">
+              <span>01 &nbsp; Collect</span><i>→</i
+              ><span>02 &nbsp; Download</span><i>→</i
+              ><span>03 &nbsp; Transcribe</span>
+            </div>
+          </div>
+          <footer class="table-footer">
+            <span id="resource-count">0 resources</span
+            ><span>Original links and progress are saved automatically</span>
+          </footer>
+        </div>
+        <div class="hint-card">
+          <span class="hint-symbol">↳</span>
+          <div>
+            <strong>You’re in control of every step.</strong>
+            <p>
+              Run stages independently, or choose Full pipeline to download,
+              parse, and export. Preview any job with a dry run.
+            </p>
+          </div>
+          <button id="hint-settings" class="text-button">
+            Review settings ↗
+          </button>
+        </div>
+      </section>
+      <section id="jobs-view" class="view" hidden>
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">EVERY STEP, VISIBLE</div>
+            <h1>Job queue</h1>
+            <p>Follow the work. Pause, retry, or pick up where you left off.</p>
+          </div>
+          <span class="subtle-pill">1 worker · sequential processing</span>
+        </div>
+        <div id="jobs-list"></div>
+      </section>
+      <section id="settings-view" class="view" hidden>
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">MAKE IT YOURS</div>
+            <h1>Configuration</h1>
+            <p>
+              Defaults for new jobs. Queued jobs keep their original settings.
+            </p>
+          </div>
+          <button class="primary" type="submit" form="settings-form">
+            Save settings
+          </button>
+        </div>
+        <form id="settings-form"></form>
+      </section>
+      <footer class="app-footer">
+        <span>TRANSCRIPT STUDIO</span
+        ><span>A quieter way from media to meaning.</span>
+      </footer>
+    </main>
+    <dialog id="import-dialog">
+      <form id="import-form">
+        <div class="dialog-heading">
+          <div>
+            <div class="eyebrow">GROW YOUR LIBRARY</div>
+            <h2>Add resources</h2>
+          </div>
+          <button
+            type="button"
+            data-close="import-dialog"
+            class="icon-button"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <div class="segmented">
+          <button type="button" data-import-mode="links" class="active">
+            Paste video links</button
+          ><button type="button" data-import-mode="collection">
+            Import a collection
+          </button>
+        </div>
+        <div id="links-fields">
+          <label
+            >Video links<textarea
+              id="links-input"
+              rows="7"
+              placeholder="https://www.bilibili.com/video/BV…&#10;https://www.bilibili.com/video/BV…"
+            ></textarea>
+          </label>
+          <p class="field-note">
+            One full Bilibili video URL per line. Links are saved in General;
+            duplicates are skipped. All parts of a video are included.
+          </p>
+        </div>
+        <div id="collection-fields" hidden>
+          <label
+            >Collection name<input
+              id="collection-name"
+              placeholder="e.g. Design lectures"
+              maxlength="120" /></label
+          ><label
+            >Collection link<input
+              id="collection-url"
+              type="url"
+              placeholder="https://space.bilibili.com/…/lists/…?type=series"
+          /></label>
+          <p class="field-note">
+            Supports Bilibili series and season collections. Discovery runs in
+            the job queue; importing the same collection adds only new
+            memberships.
+          </p>
+          <label class="checkbox-label"
+            ><input id="collection-dry" type="checkbox" />Dry run — validate and
+            preview, without network access</label
+          >
+        </div>
+        <p class="form-error" id="import-error" role="alert"></p>
+        <div class="dialog-footer">
+          <button type="button" data-close="import-dialog">Cancel</button
+          ><button class="primary" type="submit" id="import-submit">
+            Add to General
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="job-dialog">
+      <form id="job-form">
+        <div class="dialog-heading">
+          <div>
+            <div class="eyebrow">START SOMETHING</div>
+            <h2 id="job-dialog-title">Start job</h2>
+          </div>
+          <button
+            type="button"
+            class="icon-button"
+            data-close="job-dialog"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <p id="job-description"></p>
+        <div id="job-config-summary" class="config-summary"></div>
+        <label class="checkbox-label"
+          ><input id="job-dry" type="checkbox" />Dry run
+          <span class="muted"
+            >— preview steps and missing prerequisites</span
+          ></label
+        ><label class="checkbox-label"
+          ><input id="job-force" type="checkbox" />Reprocess existing
+          results</label
+        >
+        <p class="field-note">
+          Dry runs never download media, load a model, or change resources. Full
+          pipeline reuses existing audio and transcripts unless reprocessing is
+          enabled.
+        </p>
+        <p class="form-error" id="job-error" role="alert"></p>
+        <div class="dialog-footer">
+          <button type="button" data-close="job-dialog">Cancel</button
+          ><button type="submit" class="primary">Queue job →</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="detail-dialog" class="detail-dialog">
+      <div class="dialog-heading">
+        <div>
+          <div class="eyebrow" id="detail-eyebrow">DETAILS</div>
+          <h2 id="detail-title">Details</h2>
+        </div>
+        <button
+          data-close="detail-dialog"
+          class="icon-button"
+          aria-label="Close"
+        >
+          ×
+        </button>
+      </div>
+      <div id="detail-content"></div>
+    </dialog>
+    <div id="toast" class="toast" role="status" hidden></div>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "transcript-studio-ui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Buildless browser UI served by the Python application",
+  "scripts": {"check": "node --check src/bilibili_transcript/web/static/app.js"}
+}

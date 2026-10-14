@@ -37,7 +37,7 @@ class AudioScraper:
     def __init__(self, config: Optional[ScraperConfig] = None):
         self.config = config or ScraperConfig()
 
-    def download_audio(self, url: str) -> list[AudioSource]:
+    def download_audio(self, url: str, progress=None) -> list[AudioSource]:
         output_dir = Path(self.config.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         match = re.search(r"bilibili\.com/video/(BV[0-9A-Za-z]+)", url)
@@ -46,6 +46,7 @@ class AudioScraper:
             if existing.is_file() and existing.stat().st_size > 0:
                 return [AudioSource(path=existing, url=url, title=match.group(1))]
         options = {
+            "progress_hooks": [progress] if progress else [],
             "format": "bestaudio/best",
             "outtmpl": str(output_dir / "%(id)s.%(ext)s"),
             "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "m4a"}],
