@@ -13,8 +13,17 @@ Transcribe Bilibili videos and livestream recordings to text using Whisper.
 
 ## Installation
 
+This project uses [uv](https://github.com/astral-sh/uv) for dependency management.
+
 ```bash
-# Install with uv
+# Clone the repository
+git clone <repository-url>
+cd transcript
+
+# Install dependencies with uv
+uv sync
+
+# Or manually install
 uv pip install -e .
 ```
 
@@ -25,7 +34,7 @@ uv pip install -e .
 Process one video at a time:
 
 ```bash
-python -m bilibili_transcript.main --video "https://www.bilibili.com/video/BV1xx411c7mD"
+uv run python -m bilibili_transcript.main --video "https://www.bilibili.com/video/BV1xx411c7mD"
 ```
 
 ### Collection Processing
@@ -33,7 +42,7 @@ python -m bilibili_transcript.main --video "https://www.bilibili.com/video/BV1xx
 Process all videos in a collection/series:
 
 ```bash
-python -m bilibili_transcript.main --collection "https://space.bilibili.com/45502/lists/31284?type=series"
+uv run python -m bilibili_transcript.main --collection "https://space.bilibili.com/45502/lists/31284?type=series"
 ```
 
 The tool will:
@@ -47,7 +56,7 @@ The tool will:
 If processing is interrupted (Ctrl+C, error, or system shutdown), simply run the same command again:
 
 ```bash
-python -m bilibili_transcript.main --collection "https://space.bilibili.com/45502/lists/31284?type=series"
+uv run python -m bilibili_transcript.main --collection "https://space.bilibili.com/45502/lists/31284?type=series"
 ```
 
 The tool will:
@@ -123,25 +132,26 @@ Press **Ctrl+C** once to trigger graceful shutdown:
 
 ```bash
 # Process collection with default settings (base model, CPU)
-python -m bilibili_transcript.main --collection "https://space.bilibili.com/45502/lists/31284?type=series"
+uv run python -m bilibili_transcript.main --collection "https://space.bilibili.com/45502/lists/31284?type=series"
 
 # Use larger model for better accuracy
-python -m bilibili_transcript.main \
+uv run python -m bilibili_transcript.main \
   --collection "https://space.bilibili.com/45502/lists/31284?type=series" \
-  --model-size medium
+  --model-size large
 
-# Use GPU acceleration
-python -m bilibili_transcript.main \
+# Use GPU acceleration with larger model
+uv run python -m bilibili_transcript.main \
   --collection "https://space.bilibili.com/45502/lists/31284?type=series" \
-  --device cuda
+  --device cuda \
+  --model-size large
 
 # Force reprocess everything (ignore existing transcripts)
-python -m bilibili_transcript.main \
+uv run python -m bilibili_transcript.main \
   --collection "https://space.bilibili.com/45502/lists/31284?type=series" \
   --no-skip-existing
 
 # Process single video with custom output directory
-python -m bilibili_transcript.main \
+uv run python -m bilibili_transcript.main \
   --video "https://www.bilibili.com/video/BV1xx411c7mD" \
   --output-dir ./my_transcripts
 ```
