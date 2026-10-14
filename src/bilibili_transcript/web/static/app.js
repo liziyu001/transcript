@@ -25,11 +25,11 @@ const state = {
   loading: false,
 };
 const stageNames = {
-  download: "Download audio",
-  parse: "Parse audio",
-  export: "Export transcripts",
-  pipeline: "Full pipeline",
-  discover: "Discover collection",
+  download: "下载音频",
+  parse: "解析音频",
+  export: "导出转录结果",
+  pipeline: "完整流程",
+  discover: "解析合集",
 };
 const activeStates = ["queued", "running", "pausing", "cancelling"];
 let toastTimer;
@@ -51,13 +51,13 @@ async function api(path, options = {}) {
     try {
       data = await response.json();
     } catch {
-      throw Error(`Request failed (${response.status})`);
+      throw Error(`请求失败 (${response.status})`);
     }
     const detail = data.detail;
     throw Error(
       Array.isArray(detail)
-        ? detail.map((x) => x.msg).join("\n")
-        : detail || "Request failed",
+        ? detail.map(validationZh).join("\n")
+        : messageZh(detail) || "请求失败",
     );
   }
   return response.json();
@@ -69,7 +69,7 @@ function post(path, body) {
   });
 }
 function date(value) {
-  return new Date(value).toLocaleString(undefined, {
+  return new Date(value).toLocaleString("zh-CN", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -81,7 +81,7 @@ function badge(label, color = "") {
 }
 function statusBadge(status) {
   return badge(
-    status.replaceAll("_", " "),
+    statusNames[status] || status,
     {
       completed: "green",
       running: "blue",
@@ -109,9 +109,9 @@ function show(view) {
     x.classList.toggle("active", x.dataset.nav === view),
   );
   $("#breadcrumb").textContent = {
-    library: "Resource center",
-    jobs: "Job queue",
-    settings: "Configuration",
+    library: "资源中心",
+    jobs: "任务队列",
+    settings: "配置管理",
   }[view];
   if (view === "settings") renderSettings();
   if (view === "jobs") renderJobs();
@@ -135,15 +135,15 @@ function renderSidebar() {
   $("#collections").innerHTML = state.collections
     .map(
       (c) =>
-        `<button class="collection-item ${state.collection === c.id ? "active" : ""}" data-collection="${c.id}"><span>▱</span><span class="collection-name">${esc(c.name)}</span><span class="nav-count">${c.count}</span></button>`,
+        `<button class="collection-item ${state.collection === c.id ? "active" : ""}" data-collection="${c.id}"><span>▱</span><span class="collection-name">${esc(collectionName(c))}</span><span class="nav-count">${c.count}</span></button>`,
     )
     .join("");
   $("#mobile-collection").innerHTML =
-    '<option value="">All collections</option>' +
+    '<option value="">全部合集</option>' +
     state.collections
       .map(
         (c) =>
-          `<option value="${c.id}" ${state.collection === c.id ? "selected" : ""}>${esc(c.name)} (${c.count})</option>`,
+          `<option value="${c.id}" ${state.collection === c.id ? "selected" : ""}>${esc(collectionName(c))} (${c.count})</option>`,
       )
       .join("");
 }
@@ -151,26 +151,26 @@ function renderLibrary() {
   const all = state.resources;
   const collection = state.collections.find((c) => c.id === state.collection);
   $("#library-title").textContent = collection
-    ? collection.name
-    : "Resource center";
+    ? collectionName(collection)
+    : "资源中心";
   const metrics = [
-    ["Total resources", all.length, "Across your library", "▤"],
+    ["资源总数", all.length, "资源库中的全部资源", "▤"],
     [
-      "Audio ready",
+      "音频已就绪",
       all.filter((r) => r.audio.length).length,
-      "Downloaded and available",
+      "已下载，可直接使用",
       "↓",
     ],
     [
-      "Transcribed",
+      "已转录",
       all.filter((r) => r.parsed.length).length,
-      "Ready for your next idea",
+      "转录完成，随时导出",
       "≋",
     ],
     [
-      "Active jobs",
+      "进行中的任务",
       state.jobs.filter((j) => activeStates.includes(j.state)).length,
-      "Working in the background",
+      "后台自动处理",
       "↗",
     ],
   ];
@@ -184,35 +184,37 @@ function renderLibrary() {
   $("#resource-rows").innerHTML = rows
     .map(
       (r) =>
-        `<tr><td class="check-cell"><input type="checkbox" data-select="${r.id}" aria-label="Select ${esc(r.title)}" ${state.selected.has(r.id) ? "checked" : ""}></td><td><div class="resource-cell"><span class="media-icon">▷</span><div><button class="resource-name" data-resource="${r.id}">${esc(r.title)}</button><a class="resource-url" href="${esc(r.url)}" target="_blank" rel="noreferrer">${esc(r.url)}</a></div></div></td><td>${esc(
+        `<tr><td class="check-cell"><input type="checkbox" data-select="${r.id}" aria-label="选择 ${esc(r.title)}" ${state.selected.has(r.id) ? "checked" : ""}></td><td><div class="resource-cell"><span class="media-icon">▷</span><div><button class="resource-name" data-resource="${r.id}">${esc(r.title)}</button><a class="resource-url" href="${esc(r.url)}" target="_blank" rel="noreferrer">${esc(r.url)}</a></div></div></td><td>${esc(
           r.collections
-            .map((id) => state.collections.find((c) => c.id === id)?.name)
+            .map((id) =>
+              collectionName(state.collections.find((c) => c.id === id)),
+            )
             .filter(Boolean)
             .join(", "),
-        )}</td><td>${r.audio.length ? badge("✓ Ready", "green") : badge("Not downloaded")}</td><td>${r.parsed.length ? badge(r.outputs.length ? "✓ Exported" : "✓ Parsed", "green") : badge("Not parsed")}</td><td><button class="icon-button" data-resource="${r.id}" aria-label="Open ${esc(r.title)}">↗</button></td></tr>`,
+        )}</td><td>${r.audio.length ? badge("✓ 已就绪", "green") : badge("未下载")}</td><td>${r.parsed.length ? badge(r.outputs.length ? "✓ 已导出" : "✓ 已解析", "green") : badge("未解析")}</td><td><button class="icon-button" data-resource="${r.id}" aria-label="打开 ${esc(r.title)}">↗</button></td></tr>`,
     )
     .join("");
   $("#library-empty").hidden = rows.length > 0;
   if (all.length) {
-    $("#library-empty h2").textContent = "No resources in this view";
+    $("#library-empty h2").textContent = "当前视图没有资源";
     $("#library-empty p").textContent =
-      "Try another collection, filter, or search. You can also add more resources.";
-    $("#empty-import").textContent = "＋ Add resources";
+      "请切换合集、调整筛选或搜索条件，也可以添加更多资源。";
+    $("#empty-import").textContent = "＋ 添加资源";
   } else {
-    $("#library-empty h2").textContent = "A home for your next transcript";
+    $("#library-empty h2").textContent = "从添加第一份资源开始";
     $("#library-empty p").textContent =
-      "Add a Bilibili collection or paste video links. Download and transcribe them whenever you’re ready.";
-    $("#empty-import").textContent = "＋ Add your first resources";
+      "导入哔哩哔哩合集，或粘贴视频链接。 随时下载音频并转录为文字。";
+    $("#empty-import").textContent = "＋ 添加第一份资源";
   }
   $("#resource-count").textContent =
-    `${rows.length} resource${rows.length === 1 ? "" : "s"}${state.search ? " matching your search" : ""}`;
+    `${rows.length} 个资源${state.search ? "符合搜索条件" : ""}`;
   renderSelection();
 }
 function renderSelection() {
   const n = state.selected.size;
   $("#selection-label").textContent = n
-    ? `${n} resource${n === 1 ? "" : "s"} selected`
-    : "Select resources to start a job";
+    ? `已选择 ${n} 个资源`
+    : "选择资源后即可创建任务";
   $$("[data-stage]").forEach((x) => (x.disabled = !n));
   const rows = filtered();
   const count = rows.filter((r) => state.selected.has(r.id)).length;
@@ -222,17 +224,17 @@ function renderSelection() {
 function controls(job) {
   const button = (action, label) =>
     `<button data-control="${action}" data-job="${job.id}">${label}</button>`;
-  return `<div class="job-controls">${["queued", "running"].includes(job.state) ? button("pause", "Pause") : ""}${job.state === "paused" ? button("resume", "Resume") : ""}${["failed", "cancelled"].includes(job.state) ? button("retry", "Retry incomplete") : ""}${["queued", "running", "paused", "pausing"].includes(job.state) ? button("cancel", "Cancel") : ""}</div>`;
+  return `<div class="job-controls">${["queued", "running"].includes(job.state) ? button("pause", "暂停") : ""}${job.state === "paused" ? button("resume", "继续") : ""}${["failed", "cancelled"].includes(job.state) ? button("retry", "重试未完成项") : ""}${["queued", "running", "paused", "pausing"].includes(job.state) ? button("cancel", "取消") : ""}</div>`;
 }
 function renderJobs() {
   $("#jobs-list").innerHTML = state.jobs.length
     ? state.jobs
         .map(
           (j) =>
-            `<article class="job-card"><div class="job-card-head"><button class="job-title" data-job-detail="${j.id}">${stageNames[j.kind]} <span class="muted">#${j.id}</span></button>${statusBadge(j.state)}${j.dry_run ? badge("Dry run", "orange") : ""}<time class="job-time">${date(j.created)}</time></div><div class="job-meta"><span>${j.completed} / ${j.total} complete${j.failed ? ` · ${j.failed} failed` : ""}</span><span>${Math.round(j.progress || 0)}%</span></div>${progress(j.progress)}<div class="job-bottom"><small>${j.state === "pausing" ? "Pausing after the current resource finishes." : j.state === "paused" ? "Resume when you’re ready. Completed resources are preserved." : j.state === "failed" ? "Open details for errors. Retry processes only incomplete resources." : "Settings and progress are saved with this job."}</small>${controls(j)}<button class="text-button" data-job-detail="${j.id}">View details →</button></div></article>`,
+            `<article class="job-card"><div class="job-card-head"><button class="job-title" data-job-detail="${j.id}">${stageNames[j.kind]} <span class="muted">#${j.id}</span></button>${statusBadge(j.state)}${j.dry_run ? badge("试运行", "orange") : ""}<time class="job-time">${date(j.created)}</time></div><div class="job-meta"><span>已完成 ${j.completed} / ${j.total}${j.failed ? ` · ${j.failed} 项失败` : ""}</span><span>${Math.round(j.progress || 0)}%</span></div>${progress(j.progress)}<div class="job-bottom"><small>${j.state === "pausing" ? "当前资源处理完成后暂停。" : j.state === "paused" ? "可随时继续，已完成的资源会保留。" : j.state === "failed" ? "打开详情查看错误；重试仅处理未完成的资源。" : "任务配置与进度已保存。"}</small>${controls(j)}<button class="text-button" data-job-detail="${j.id}">查看详情 →</button></div></article>`,
         )
         .join("")
-    : `<div class="empty-jobs"><div class="empty-icon">☷</div><h2>Room for your next task</h2><p>Select resources in your library to queue a download, transcription, or export.</p><button data-nav="library">Go to resource center →</button></div>`;
+    : `<div class="empty-jobs"><div class="empty-icon">☷</div><h2>还没有任务</h2><p>在资源库中选择资源，即可创建下载、转录或导出任务。</p><button data-nav="library">前往资源中心 →</button></div>`;
 }
 async function refresh() {
   if (state.loading) return;
@@ -254,12 +256,12 @@ async function refresh() {
       if (state.view === "library") renderLibrary();
       if (state.view === "jobs") renderJobs();
     }
-    $("#connection").textContent = "Connected to local server";
+    $("#connection").textContent = "已连接本地服务";
     $("#connection-dot").style.background = "#63a185";
     if (state.detail?.kind === "job" && $("#detail-dialog").open)
       await renderJobDetail(state.detail.id);
   } catch (error) {
-    $("#connection").textContent = "Server offline · retrying";
+    $("#connection").textContent = "服务已断开 · 正在重连";
     $("#connection-dot").style.background = "#c47f67";
   } finally {
     state.loading = false;
@@ -274,7 +276,7 @@ function openImport(mode = "links") {
   $("#links-fields").hidden = mode !== "links";
   $("#collection-fields").hidden = mode !== "collection";
   $("#import-submit").textContent =
-    mode === "links" ? "Add to General" : "Queue discovery";
+    mode === "links" ? "添加至通用合集" : "加入合集解析队列";
   if (!$("#import-dialog").open) $("#import-dialog").showModal();
 }
 async function openJob(stage) {
@@ -282,15 +284,15 @@ async function openJob(stage) {
   try {
     state.settings = await api("/settings");
   } catch (e) {
-    toast(e.message, true);
+    toast(messageZh(e.message), true);
     return;
   }
   $("#job-dialog-title").textContent = stageNames[stage];
   $("#job-description").textContent =
-    `${state.selected.size} selected resource(s). ${{ download: "Save audio locally for later parsing.", parse: "Transcribe downloaded audio into reusable transcript data.", export: "Create files from saved transcript data.", pipeline: "Download → parse → export, in one job." }[stage]}`;
+    `已选择 ${state.selected.size} 个资源。 ${{ download: "将音频保存到本地，以便后续解析。", parse: "将已下载的音频转为可复用的转录数据。", export: "从已保存的转录数据生成文件。", pipeline: "在一个任务中依次完成下载 → 解析 → 导出。" }[stage]}`;
   const s = state.settings;
   $("#job-config-summary").innerHTML =
-    `Downloader: ${s.downloader.timeout}s timeout · ${s.downloader.retries} retries<br>Parser: ${esc(s.parser.model)} · ${esc(s.parser.device)} · ${esc(s.parser.language)}<br>Output: ${s.output.formats.map(esc).join(", ").toUpperCase()}<br><span class="muted">Change defaults in Configuration before starting.</span>`;
+    `下载器: 超时 ${s.downloader.timeout} 秒 · 重试 ${s.downloader.retries} 次<br>解析器: ${esc(s.parser.model)} · ${esc(s.parser.device)} · ${esc(s.parser.language)}<br>输出: ${s.output.formats.map(esc).join(", ").toUpperCase()}<br><span class="muted">如需调整默认设置，请先前往配置管理。</span>`;
   $("#job-error").textContent = "";
   $("#job-dry").checked = false;
   $("#job-force").checked = false;
@@ -305,32 +307,32 @@ async function renderJobDetail(id) {
   state.detail.signature = signature;
   $("#detail-title").textContent = `${stageNames[job.kind]} #${job.id}`;
   $("#detail-eyebrow").textContent = job.dry_run
-    ? "DRY RUN · NO RESOURCE CHANGES"
-    : "JOB DETAILS";
+    ? "试运行 · 不修改资源"
+    : "任务详情";
   $("#detail-content").innerHTML =
-    `<div class="job-card-head">${statusBadge(job.state)}<span class="muted">${date(job.created)}</span></div><div class="job-bottom">${controls(job)}<small>Pause takes effect after the current resource. Cancel stops it.</small></div><div class="detail-section"><h3>Resources & progress</h3>${job.items.map((i) => `<div class="item-row"><div class="item-row-head"><strong>${esc(i.title || job.config.collection?.name || "Collection discovery")}</strong>${statusBadge(i.state)}</div>${progress(i.progress)}<p>${esc(i.stage ? i.stage + " · " : "")}${esc(i.message || "Waiting for the worker")}</p>${job.dry_run && i.state === "completed" ? renderPlan(i.result) : ""}${job.kind === "discover" && !job.dry_run && i.state === "completed" ? `<p>Added ${i.result.added} memberships · ${i.result.existing} already present.</p>` : ""}<div class="item-actions"><button data-log="${i.id}">View log</button>${i.resource_id ? `<button data-resource="${i.resource_id}">Open resource</button>` : ""}</div></div>`).join("")}</div><div class="detail-section"><h3>Activity</h3><ul class="events">${job.events.map((e) => `<li><time>${date(e.created)}</time>${esc(e.message)}</li>`).join("")}</ul></div><div class="detail-section"><h3>Configuration snapshot</h3><pre>${esc(JSON.stringify(job.config, null, 2))}</pre></div>`;
+    `<div class="job-card-head">${statusBadge(job.state)}<span class="muted">${date(job.created)}</span></div><div class="job-bottom">${controls(job)}<small>暂停会等待当前资源处理完成；取消会立即终止当前处理。</small></div><div class="detail-section"><h3>资源与进度</h3>${job.items.map((i) => `<div class="item-row"><div class="item-row-head"><strong>${esc(i.title || job.config.collection?.name || "合集解析")}</strong>${statusBadge(i.state)}</div>${progress(i.progress)}<p>${esc(i.stage ? stageNames[i.stage] + " · " : "")}${esc(messageZh(i.message) || "等待工作进程处理")}</p>${job.dry_run && i.state === "completed" ? renderPlan(i.result) : ""}${job.kind === "discover" && !job.dry_run && i.state === "completed" ? `<p>新增 ${i.result.added} 个资源 · ${i.result.existing} 个已存在。</p>` : ""}<div class="item-actions"><button data-log="${i.id}">查看日志</button>${i.resource_id ? `<button data-resource="${i.resource_id}">打开资源</button>` : ""}</div></div>`).join("")}</div><div class="detail-section"><h3>任务动态</h3><ul class="events">${job.events.map((e) => `<li><time>${date(e.created)}</time>${esc(messageZh(e.message))}</li>`).join("")}</ul></div><div class="detail-section"><h3>任务配置快照</h3><pre>${esc(JSON.stringify(configZh(job.config), null, 2))}</pre></div>`;
 }
 function renderPlan(result) {
   if (result.steps)
-    return `<div class="job-plan">${result.steps.map((s) => (typeof s === "string" ? esc(s) : `<strong>${esc(s.stage)}</strong> — ${esc(s.action)}`)).join("<br>")}</div>`;
+    return `<div class="job-plan">${result.steps.map((s) => (typeof s === "string" ? esc(messageZh(s)) : `<strong>${esc(stageNames[s.stage] || s.stage)}</strong> — ${esc(messageZh(s.action))}`)).join("<br>")}</div>`;
   return `<pre>${esc(JSON.stringify(result, null, 2))}</pre>`;
 }
 async function openJobDetail(id) {
   state.detail = { kind: "job", id };
-  $("#detail-title").textContent = "Loading job…";
+  $("#detail-title").textContent = "正在加载任务…";
   $("#detail-content").textContent = "";
   if (!$("#detail-dialog").open) $("#detail-dialog").showModal();
   try {
     await renderJobDetail(id);
   } catch (e) {
-    toast(e.message, true);
+    toast(messageZh(e.message), true);
   }
 }
 function openResource(id) {
   const r = state.resources.find((r) => r.id === id);
   if (!r) return;
   state.detail = { kind: "resource", id };
-  $("#detail-eyebrow").textContent = "RESOURCE DETAILS";
+  $("#detail-eyebrow").textContent = "资源详情";
   $("#detail-title").textContent = r.title;
   const files = (category, paths) =>
     paths
@@ -338,11 +340,11 @@ function openResource(id) {
         const path = category === "audio" ? file.path : file;
         const name = path.split(/[\\/]/).pop();
         const url = `/api/resources/${r.id}/files/${category}/${index}`;
-        return `<div class="file-row"><span>${esc(name)}</span>${category !== "audio" ? `<button data-preview="${url}">Preview</button>` : ""}<a href="${url}?download=true">Download ↓</a></div>${category === "audio" ? `<audio controls preload="none" src="${url}"></audio>` : ""}`;
+        return `<div class="file-row"><span>${esc(name)}</span>${category !== "audio" ? `<button data-preview="${url}">预览</button>` : ""}<a href="${url}?download=true">下载 ↓</a></div>${category === "audio" ? `<audio controls preload="none" src="${url}"></audio>` : ""}`;
       })
       .join("");
   $("#detail-content").innerHTML =
-    `<p><a href="${esc(r.url)}" target="_blank" rel="noreferrer">Open original video ↗</a></p><div class="detail-section"><h3>Audio · ${r.audio.length} part(s)</h3>${files("audio", r.audio) || "<p>No audio yet. Select this resource and run Download.</p>"}</div><div class="detail-section"><h3>Transcript data</h3>${files("parsed", r.parsed) || "<p>No transcript yet. Download audio, then run Parse.</p>"}</div><div class="detail-section"><h3>Exported files</h3>${files("outputs", r.outputs) || "<p>Run Export after parsing to create readable files.</p>"}</div><pre class="resource-preview" id="file-preview" hidden></pre>`;
+    `<p><a href="${esc(r.url)}" target="_blank" rel="noreferrer">打开原始视频 ↗</a></p><div class="detail-section"><h3>音频 · ${r.audio.length} 个分段</h3>${files("audio", r.audio) || "<p>暂无音频，请选择此资源并运行下载。</p>"}</div><div class="detail-section"><h3>转录数据</h3>${files("parsed", r.parsed) || "<p>暂无转录数据，请先下载音频，再运行解析。</p>"}</div><div class="detail-section"><h3>已导出的文件</h3>${files("outputs", r.outputs) || "<p>解析完成后运行导出，即可生成文本或字幕文件。</p>"}</div><pre class="resource-preview" id="file-preview" hidden></pre>`;
   if (!$("#detail-dialog").open) $("#detail-dialog").showModal();
 }
 function renderSettings() {
@@ -353,18 +355,18 @@ function renderSettings() {
         state.settings = x;
         if (state.view === "settings") renderSettings();
       })
-      .catch((e) => toast(e.message, true));
+      .catch((e) => toast(messageZh(e.message), true));
     return;
   }
   const options = (values, current) =>
     values
       .map(
         (value) =>
-          `<option value="${value}" ${value === current ? "selected" : ""}>${value}</option>`,
+          `<option value="${value}" ${value === current ? "selected" : ""}>${esc(optionNames[value] || value)}</option>`,
       )
       .join("");
   $("#settings-form").innerHTML =
-    `<section class="settings-card"><div><h3>01 &nbsp; Downloader</h3><p>Network behavior for collection discovery and audio downloads.</p></div><div class="settings-fields"><label>Request timeout (seconds)<input name="timeout" type="number" min="5" max="600" value="${s.downloader.timeout}" required></label><label>Retries<input name="retries" type="number" min="0" max="20" value="${s.downloader.retries}" required></label><p class="field-note span-two">Audio stays in the persistent data directory. Existing audio is reused unless you enable reprocessing when starting a job.</p></div></section><section class="settings-card"><div><h3>02 &nbsp; Parser</h3><p>Local speech recognition with faster-whisper. The first use of a model downloads its weights.</p></div><div class="settings-fields"><label>Whisper model<select name="model">${options(["tiny", "base", "small", "medium", "large-v3", "turbo"], s.parser.model)}</select></label><label>Language<input name="language" value="${esc(s.parser.language)}" required maxlength="10"><span class="field-note">zh, en, ja… or auto to detect</span></label><label>Device<select name="device">${options(["cpu", "auto", "cuda"], s.parser.device)}</select></label><label>Compute precision<select name="compute_type">${options(["int8", "default", "auto", "float16", "float32"], s.parser.compute_type)}</select></label><label>Beam size<input name="beam_size" type="number" min="1" max="10" value="${s.parser.beam_size}" required></label><label class="checkbox-label"><input name="vad_filter" type="checkbox" ${s.parser.vad_filter ? "checked" : ""}>Skip silent sections (VAD)</label><p class="field-note span-two">CPU + int8 works with the included Docker image. CUDA requires a separately configured NVIDIA environment. Larger models use more memory; tiny or base is a good starting point.</p></div></section><section class="settings-card"><div><h3>03 &nbsp; Output</h3><p>Export reusable transcript data without repeating speech recognition.</p></div><div><label>File formats</label><div class="format-options">${["txt", "vtt", "srt", "json"].map((f) => `<label class="checkbox-label"><input type="checkbox" name="formats" value="${f}" ${s.output.formats.includes(f) ? "checked" : ""}>${f.toUpperCase()}</label>`).join("")}</div><label class="checkbox-label" style="margin-top:25px"><input name="timestamps" type="checkbox" ${s.output.timestamps ? "checked" : ""}>Include timestamps in plain text</label><p class="field-note">Each export creates a versioned folder. Current files are available from resource details; previous files remain on disk.</p></div></section><p class="form-error" id="settings-error" role="alert"></p>`;
+    `<section class="settings-card"><div><h3>01 &nbsp; 下载器</h3><p>设置合集解析和音频下载的网络参数。</p></div><div class="settings-fields"><label>请求超时（秒）<input name="timeout" type="number" min="5" max="600" value="${s.downloader.timeout}" required></label><label>重试次数<input name="retries" type="number" min="0" max="20" value="${s.downloader.retries}" required></label><p class="field-note span-two">音频会持久保存。默认复用已有音频，创建任务时启用重新处理即可重新下载。</p></div></section><section class="settings-card"><div><h3>02 &nbsp; 解析器</h3><p>使用 faster-whisper 在本地识别语音。首次使用模型时会下载模型权重。</p></div><div class="settings-fields"><label>Whisper 模型<select name="model">${options(["tiny", "base", "small", "medium", "large-v3", "turbo"], s.parser.model)}</select></label><label>识别语言<input name="language" value="${esc(s.parser.language)}" required maxlength="10"><span class="field-note">zh 中文、en 英文、ja 日文；auto 自动检测</span></label><label>计算设备<select name="device">${options(["cpu", "auto", "cuda"], s.parser.device)}</select></label><label>计算精度<select name="compute_type">${options(["int8", "default", "auto", "float16", "float32"], s.parser.compute_type)}</select></label><label>束搜索宽度<input name="beam_size" type="number" min="1" max="10" value="${s.parser.beam_size}" required></label><label class="checkbox-label"><input name="vad_filter" type="checkbox" ${s.parser.vad_filter ? "checked" : ""}>跳过静音片段（VAD）</label><p class="field-note span-two">随附的 Docker 镜像支持 CPU + int8。CUDA 需要另行配置 NVIDIA 环境。较大的模型会占用更多内存，建议从 tiny 或 base 开始。</p></div></section><section class="settings-card"><div><h3>03 &nbsp; 输出</h3><p>直接导出已有转录数据，无需重复进行语音识别。</p></div><div><label>文件格式</label><div class="format-options">${["txt", "vtt", "srt", "json"].map((f) => `<label class="checkbox-label"><input type="checkbox" name="formats" value="${f}" ${s.output.formats.includes(f) ? "checked" : ""}>${f.toUpperCase()}</label>`).join("")}</div><label class="checkbox-label" style="margin-top:25px"><input name="timestamps" type="checkbox" ${s.output.timestamps ? "checked" : ""}>在纯文本中添加时间戳</label><p class="field-note">每次导出都会创建独立的版本文件夹。当前文件可在资源详情中查看，历史文件仍保留在磁盘上。</p></div></section><p class="form-error" id="settings-error" role="alert"></p>`;
 }
 document.addEventListener("click", async (event) => {
   const target = event.target.closest("button");
@@ -405,27 +407,26 @@ document.addEventListener("click", async (event) => {
     if (d.control) {
       target.disabled = true;
       await post(`/jobs/${d.job}/${d.control}`);
-      toast(`${d.control[0].toUpperCase() + d.control.slice(1)} requested`);
+      toast(`已请求${actionNames[d.control]}`);
       await refresh();
     }
     if (d.log) {
       const log = await api(`/items/${d.log}/log`);
       state.detail = { kind: "log" };
-      $("#detail-title").textContent = "Worker log";
-      $("#detail-content").innerHTML = `<pre>${esc(log.text)}</pre>`;
+      $("#detail-title").textContent = "工作进程日志";
+      $("#detail-content").innerHTML = `<pre>${esc(messageZh(log.text))}</pre>`;
     }
     if (d.preview) {
       target.disabled = true;
       const response = await fetch(d.preview);
-      if (!response.ok)
-        throw Error("File unavailable; rerun the appropriate stage.");
+      if (!response.ok) throw Error("文件不可用，请重新运行对应阶段。");
       const preview = $("#file-preview");
       preview.textContent = await response.text();
       preview.hidden = false;
       preview.scrollIntoView({ behavior: "smooth" });
     }
   } catch (error) {
-    toast(error.message, true);
+    toast(messageZh(error.message), true);
   } finally {
     target.disabled = false;
   }
@@ -470,7 +471,7 @@ $("#import-form").addEventListener("submit", async (e) => {
         .filter((s) => s && !s.startsWith("#"));
       const result = await post("/import/links", { urls });
       toast(
-        `${result.added} added to General · ${result.existing} already present`,
+        `已添加 ${result.added} 个资源至通用合集 · ${result.existing} 个已存在`,
       );
       $("#links-input").value = "";
       state.collection = 1;
@@ -487,14 +488,14 @@ $("#import-form").addEventListener("submit", async (e) => {
         name: $("#collection-name").value.trim(),
         dry_run: $("#collection-dry").checked,
       });
-      toast("Collection discovery queued");
+      toast("合集解析已加入队列");
       show("jobs");
       await openJobDetail(result.id);
     }
     $("#import-dialog").close();
     await refresh();
   } catch (error) {
-    $("#import-error").textContent = error.message;
+    $("#import-error").textContent = messageZh(error.message);
   } finally {
     submit.disabled = false;
   }
@@ -512,11 +513,11 @@ $("#job-form").addEventListener("submit", async (e) => {
     });
     $("#job-dialog").close();
     show("jobs");
-    toast("Job queued");
+    toast("任务已加入队列");
     await refresh();
     await openJobDetail(result.id);
   } catch (error) {
-    $("#job-error").textContent = error.message;
+    $("#job-error").textContent = messageZh(error.message);
   } finally {
     submit.disabled = false;
   }
@@ -550,9 +551,9 @@ $("#settings-form").addEventListener("submit", async (e) => {
       body: JSON.stringify(settings),
     });
     $("#settings-error").textContent = "";
-    toast("Settings saved for new jobs");
+    toast("配置已保存，将用于新任务");
   } catch (error) {
-    $("#settings-error").textContent = error.message;
+    $("#settings-error").textContent = messageZh(error.message);
   } finally {
     button.disabled = false;
   }

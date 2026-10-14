@@ -1,108 +1,98 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Transcript Studio</title>
+    <title>转录工作台</title>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23e87946'/%3E%3Cpath d='M8 10h16M16 10v15' stroke='white' stroke-width='3'/%3E%3C/svg%3E"
     />
     <link rel="stylesheet" href="/styles.css" />
+    <script src="/zh.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
   <body>
     <aside class="sidebar">
       <a class="brand" href="#library"
         ><span class="brand-mark">T<span>•</span></span
-        ><span
-          >Transcript<span class="brand-sub">PERSONAL STUDIO</span></span
-        ></a
+        ><span>转录工作台<span class="brand-sub">个人转录工作台</span></span></a
       >
       <div class="workspace">
-        <span class="workspace-icon">P</span>
-        <div>Personal workspace<small>Local library</small></div>
+        <span class="workspace-icon">个</span>
+        <div>个人工作区<small>本地资源库</small></div>
         <span class="local-dot"></span>
       </div>
-      <p class="nav-label">WORKSPACE</p>
-      <nav aria-label="Main navigation">
+      <p class="nav-label">工作区</p>
+      <nav aria-label="主导航">
         <button data-nav="library" class="nav-item active">
-          <span>▦</span>Resource center
+          <span>▦</span>资源中心
           <span id="library-count" class="nav-count">0</span>
         </button>
         <button data-nav="jobs" class="nav-item">
-          <span>☷</span>Job queue
+          <span>☷</span>任务队列
           <span id="queue-count" class="nav-count">0</span>
         </button>
         <button data-nav="settings" class="nav-item">
-          <span>⚙</span>Configuration
+          <span>⚙</span>配置管理
         </button>
       </nav>
       <div class="collection-heading">
-        <p class="nav-label">COLLECTIONS</p>
-        <button
-          class="icon-button"
-          id="new-collection"
-          aria-label="Import a collection"
-        >
+        <p class="nav-label">合集</p>
+        <button class="icon-button" id="new-collection" aria-label="导入合集">
           +
         </button>
       </div>
       <div id="collections"></div>
       <div class="sidebar-foot">
         <span class="status-dot" id="connection-dot"></span
-        ><span id="connection">Connecting…</span
-        ><small>Stored on your machine</small>
+        ><span id="connection">正在连接…</span><small>数据保存在本机</small>
       </div>
     </aside>
     <main>
       <header class="topbar">
         <span
-          >Workspace <span class="breadcrumb">/</span>
-          <strong id="breadcrumb">Resource center</strong></span
-        ><span class="local-tag">◉ &nbsp; LOCAL FIRST</span>
+          >工作区 <span class="breadcrumb">/</span>
+          <strong id="breadcrumb">资源中心</strong></span
+        ><span class="local-tag">◉ &nbsp; 本地运行</span>
       </header>
       <section id="library-view" class="view">
         <div class="page-heading">
           <div>
-            <div class="eyebrow">YOUR MEDIA, ORGANIZED</div>
-            <h1 id="library-title">Resource center</h1>
-            <p>Collect the sources. Let the words follow.</p>
+            <div class="eyebrow">有序管理你的媒体资源</div>
+            <h1 id="library-title">资源中心</h1>
+            <p>汇集视频资源，轻松转为文字。</p>
           </div>
-          <button id="import-open" class="primary">
-            ＋ &nbsp; Add resources
-          </button>
+          <button id="import-open" class="primary">＋ &nbsp; 添加资源</button>
         </div>
         <div id="stats" class="stats"></div>
         <div class="library-panel">
           <div class="panel-top">
             <div class="tabs">
-              <button class="tab active" data-filter="all">All resources</button
-              ><button class="tab" data-filter="ready">Audio ready</button
-              ><button class="tab" data-filter="parsed">Transcribed</button>
+              <button class="tab active" data-filter="all">全部资源</button
+              ><button class="tab" data-filter="ready">音频已就绪</button
+              ><button class="tab" data-filter="parsed">已转录</button>
             </div>
             <label class="search"
               ><span>⌕</span
               ><input
                 id="search"
                 type="search"
-                placeholder="Search title or URL"
-                aria-label="Search resources"
+                placeholder="搜索标题或链接"
+                aria-label="搜索资源"
             /></label>
           </div>
           <div class="selection-bar">
-            <select id="mobile-collection" aria-label="Filter collection">
-              <option value="">All collections</option>
+            <select id="mobile-collection" aria-label="筛选合集">
+              <option value="">全部合集</option>
             </select>
-            <span id="selection-label">Select resources to start a job</span>
+            <span id="selection-label">选择资源后即可创建任务</span>
             <div class="actions">
-              <button data-stage="download" disabled>
-                ↓ <span>Download</span></button
-              ><button data-stage="parse" disabled>≋ <span>Parse</span></button
-              ><button data-stage="export" disabled>
-                ↗ <span>Export</span></button
+              <button data-stage="download" disabled>↓ <span>下载</span></button
+              ><button data-stage="parse" disabled>≋ <span>解析</span></button
+              ><button data-stage="export" disabled>↗ <span>导出</span></button
               ><button data-stage="pipeline" class="dark" disabled>
-                ▶ <span>Full pipeline</span>
+                ▶ <span>完整流程</span>
               </button>
             </div>
           </div>
@@ -114,13 +104,13 @@
                     <input
                       id="select-all"
                       type="checkbox"
-                      aria-label="Select all filtered resources"
+                      aria-label="全选当前筛选结果"
                     />
                   </th>
-                  <th>RESOURCE</th>
-                  <th>COLLECTION</th>
-                  <th>AUDIO</th>
-                  <th>TRANSCRIPT</th>
+                  <th>资源</th>
+                  <th>合集</th>
+                  <th>音频</th>
+                  <th>转录文本</th>
                   <th></th>
                 </tr>
               </thead>
@@ -129,133 +119,118 @@
           </div>
           <div id="library-empty" class="empty" hidden>
             <div class="empty-icon">▤</div>
-            <h2>A home for your next transcript</h2>
+            <h2>从添加第一份资源开始</h2>
             <p>
-              Add a Bilibili collection or paste video links.<br />Download and
-              transcribe them whenever you’re ready.
+              导入哔哩哔哩合集，或粘贴视频链接。<br />随时下载音频并转录为文字。
             </p>
-            <button class="primary" id="empty-import">
-              ＋ Add your first resources
-            </button>
+            <button class="primary" id="empty-import">＋ 添加第一份资源</button>
             <div class="empty-flow">
-              <span>01 &nbsp; Collect</span><i>→</i
-              ><span>02 &nbsp; Download</span><i>→</i
-              ><span>03 &nbsp; Transcribe</span>
+              <span>01 &nbsp; 收集</span><i>→</i><span>02 &nbsp; 下载</span
+              ><i>→</i><span>03 &nbsp; 转录</span>
             </div>
           </div>
           <footer class="table-footer">
-            <span id="resource-count">0 resources</span
-            ><span>Original links and progress are saved automatically</span>
+            <span id="resource-count">0 个资源</span
+            ><span>原始链接与任务进度会自动保存</span>
           </footer>
         </div>
         <div class="hint-card">
           <span class="hint-symbol">↳</span>
           <div>
-            <strong>You’re in control of every step.</strong>
+            <strong>每一步，都由你掌控。</strong>
             <p>
-              Run stages independently, or choose Full pipeline to download,
-              parse, and export. Preview any job with a dry run.
+              可单独运行各个阶段，也可通过完整流程依次下载、解析并导出。试运行可提前预览任务。
             </p>
           </div>
-          <button id="hint-settings" class="text-button">
-            Review settings ↗
-          </button>
+          <button id="hint-settings" class="text-button">查看配置 ↗</button>
         </div>
       </section>
       <section id="jobs-view" class="view" hidden>
         <div class="page-heading">
           <div>
-            <div class="eyebrow">EVERY STEP, VISIBLE</div>
-            <h1>Job queue</h1>
-            <p>Follow the work. Pause, retry, or pick up where you left off.</p>
+            <div class="eyebrow">任务进度，一目了然</div>
+            <h1>任务队列</h1>
+            <p>随时查看进度，暂停、重试或继续未完成的任务。</p>
           </div>
-          <span class="subtle-pill">1 worker · sequential processing</span>
+          <span class="subtle-pill">单个工作进程 · 按顺序处理</span>
         </div>
         <div id="jobs-list"></div>
       </section>
       <section id="settings-view" class="view" hidden>
         <div class="page-heading">
           <div>
-            <div class="eyebrow">MAKE IT YOURS</div>
-            <h1>Configuration</h1>
-            <p>
-              Defaults for new jobs. Queued jobs keep their original settings.
-            </p>
+            <div class="eyebrow">按需调整处理方式</div>
+            <h1>配置管理</h1>
+            <p>此处设置用于新任务，已排队的任务保留原有配置。</p>
           </div>
           <button class="primary" type="submit" form="settings-form">
-            Save settings
+            保存配置
           </button>
         </div>
         <form id="settings-form"></form>
       </section>
       <footer class="app-footer">
-        <span>TRANSCRIPT STUDIO</span
-        ><span>A quieter way from media to meaning.</span>
+        <span>转录工作台</span><span>让视频里的内容，成为可用的文字。</span>
       </footer>
     </main>
     <dialog id="import-dialog">
       <form id="import-form">
         <div class="dialog-heading">
           <div>
-            <div class="eyebrow">GROW YOUR LIBRARY</div>
-            <h2>Add resources</h2>
+            <div class="eyebrow">扩充你的资源库</div>
+            <h2>添加资源</h2>
           </div>
           <button
             type="button"
             data-close="import-dialog"
             class="icon-button"
-            aria-label="Close"
+            aria-label="关闭"
           >
             ×
           </button>
         </div>
         <div class="segmented">
           <button type="button" data-import-mode="links" class="active">
-            Paste video links</button
-          ><button type="button" data-import-mode="collection">
-            Import a collection
-          </button>
+            粘贴视频链接</button
+          ><button type="button" data-import-mode="collection">导入合集</button>
         </div>
         <div id="links-fields">
           <label
-            >Video links<textarea
+            >视频链接<textarea
               id="links-input"
               rows="7"
               placeholder="https://www.bilibili.com/video/BV…&#10;https://www.bilibili.com/video/BV…"
             ></textarea>
           </label>
           <p class="field-note">
-            One full Bilibili video URL per line. Links are saved in General;
-            duplicates are skipped. All parts of a video are included.
+            每行填写一个完整的哔哩哔哩视频链接，保存至“通用”合集。重复链接会跳过，视频的所有分P均会纳入处理。
           </p>
         </div>
         <div id="collection-fields" hidden>
           <label
-            >Collection name<input
+            >合集名称<input
               id="collection-name"
-              placeholder="e.g. Design lectures"
+              placeholder="例如：设计讲座"
               maxlength="120" /></label
           ><label
-            >Collection link<input
+            >合集链接<input
               id="collection-url"
               type="url"
               placeholder="https://space.bilibili.com/…/lists/…?type=series"
           /></label>
           <p class="field-note">
-            Supports Bilibili series and season collections. Discovery runs in
-            the job queue; importing the same collection adds only new
-            memberships.
+            支持哔哩哔哩系列（series）和合集（season）。链接解析会加入任务队列，重复导入同一合集仅添加新资源。
           </p>
           <label class="checkbox-label"
-            ><input id="collection-dry" type="checkbox" />Dry run — validate and
-            preview, without network access</label
+            ><input id="collection-dry" type="checkbox" />试运行 —
+            仅校验并预览，不访问网络</label
           >
         </div>
         <p class="form-error" id="import-error" role="alert"></p>
         <div class="dialog-footer">
-          <button type="button" data-close="import-dialog">Cancel</button
+          <button type="button" data-close="import-dialog">取消</button
           ><button class="primary" type="submit" id="import-submit">
-            Add to General
+            添加至通用合集
           </button>
         </div>
       </form>
@@ -264,14 +239,14 @@
       <form id="job-form">
         <div class="dialog-heading">
           <div>
-            <div class="eyebrow">START SOMETHING</div>
-            <h2 id="job-dialog-title">Start job</h2>
+            <div class="eyebrow">开始处理资源</div>
+            <h2 id="job-dialog-title">创建任务</h2>
           </div>
           <button
             type="button"
             class="icon-button"
             data-close="job-dialog"
-            aria-label="Close"
+            aria-label="关闭"
           >
             ×
           </button>
@@ -279,36 +254,31 @@
         <p id="job-description"></p>
         <div id="job-config-summary" class="config-summary"></div>
         <label class="checkbox-label"
-          ><input id="job-dry" type="checkbox" />Dry run
-          <span class="muted"
-            >— preview steps and missing prerequisites</span
-          ></label
+          ><input id="job-dry" type="checkbox" />试运行
+          <span class="muted">— 预览步骤并检查缺少的前置条件</span></label
         ><label class="checkbox-label"
-          ><input id="job-force" type="checkbox" />Reprocess existing
-          results</label
+          ><input id="job-force" type="checkbox" />重新处理已有结果</label
         >
         <p class="field-note">
-          Dry runs never download media, load a model, or change resources. Full
-          pipeline reuses existing audio and transcripts unless reprocessing is
-          enabled.
+          试运行不会下载媒体、加载模型或修改资源。完整流程默认复用已有音频与转录结果，勾选重新处理后才会重做。
         </p>
         <p class="form-error" id="job-error" role="alert"></p>
         <div class="dialog-footer">
-          <button type="button" data-close="job-dialog">Cancel</button
-          ><button type="submit" class="primary">Queue job →</button>
+          <button type="button" data-close="job-dialog">取消</button
+          ><button type="submit" class="primary">加入任务队列 →</button>
         </div>
       </form>
     </dialog>
     <dialog id="detail-dialog" class="detail-dialog">
       <div class="dialog-heading">
         <div>
-          <div class="eyebrow" id="detail-eyebrow">DETAILS</div>
-          <h2 id="detail-title">Details</h2>
+          <div class="eyebrow" id="detail-eyebrow">详细信息</div>
+          <h2 id="detail-title">详细信息</h2>
         </div>
         <button
           data-close="detail-dialog"
           class="icon-button"
-          aria-label="Close"
+          aria-label="关闭"
         >
           ×
         </button>
