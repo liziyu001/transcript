@@ -15,7 +15,7 @@ from src.bilibili_transcript.parser import ParserConfig
 # ==============================================================================
 
 # Paste your Bilibili livestream replay URL here
-VIDEO_URL = "https://www.bilibili.com/video/BV1xx411c7mD/"  # EDIT THIS
+VIDEO_URL = "https://www.bilibili.com/video/BV1SbpQ69EVW/"  # EDIT THIS
 
 # Output directory for transcripts
 OUTPUT_DIR = Path("data/transcripts")
@@ -51,21 +51,21 @@ def main():
         print("\n" + "=" * 60)
         print("RESULT")
         print("=" * 60)
-        print(f"✓ Transcription saved to: {OUTPUT_DIR}")
+        print(f"[OK] Transcription saved to: {OUTPUT_DIR}")
         print(f"  - Plain text: {transcript.title}_*.txt")
         print(f"  - With timestamps: {transcript.title}_*_with_ts.txt")
         print(f"  - Full metadata: {transcript.title}_*.json")
         print(f"  - VTT subtitles: {transcript.title}_*.vtt")
-        print(f"\n✓ Total segments: {len(transcript.segments)}")
+        print(f"\n[OK] Total segments: {len(transcript.segments)}")
         if transcript.segments:
             total_secs = transcript.segments[-1].end if transcript.segments else 0
             mins = int(total_secs // 60)
-            print(f"✓ Duration: ~{mins} minutes")
+            print(f"[OK] Duration: ~{mins} minutes")
 
         return 0
 
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nError: {e}")
         import traceback
         traceback.print_exc()
         return 1
