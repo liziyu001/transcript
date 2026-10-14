@@ -604,8 +604,11 @@ tbody tr:hover {
   padding: 15px 21px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 10px;
   color: #a2a8ad;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 .empty {
   text-align: center;
@@ -1250,4 +1253,66 @@ pre {
   .resource-cell {
     min-width: 170px;
   }
+}
+.context-menu {
+  position: absolute;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  min-width: 180px;
+  z-index: 1000;
+}
+.context-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.12s;
+}
+.context-menu-item:hover:not(:disabled) {
+  background: #f1f3f4;
+}
+.context-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.context-menu-item.danger {
+  color: #c44836;
+}
+.context-menu-item.danger:hover:not(:disabled) {
+  background: #fef2f1;
+}
+.context-menu-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 0;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pagination button {
+  padding: 6px 12px;
+  min-width: 36px;
+}
+.pagination select {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+#page-info {
+  color: var(--muted);
+  font-size: 13px;
+  min-width: 100px;
+  text-align: center;
+}
+tr[data-resource-row] {
+  cursor: context-menu;
 }

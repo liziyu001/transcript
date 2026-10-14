@@ -8,9 +8,9 @@
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23e87946'/%3E%3Cpath d='M8 10h16M16 10v15' stroke='white' stroke-width='3'/%3E%3C/svg%3E"
     />
-    <link rel="stylesheet" href="/styles.css?v=zh-cn-1" />
-    <script src="/zh.js?v=zh-cn-1" defer></script>
-    <script src="/app.js?v=zh-cn-1" defer></script>
+    <link rel="stylesheet" href="/styles.css?v=zh-cn-2" />
+    <script src="/zh.js?v=zh-cn-2" defer></script>
+    <script src="/app.js?v=zh-cn-2" defer></script>
   </head>
   <body>
     <aside class="sidebar">
@@ -132,6 +132,17 @@
           <footer class="table-footer">
             <span id="resource-count">0 个资源</span
             ><span>原始链接与任务进度会自动保存</span>
+            <div class="pagination">
+              <button id="prev-page" class="icon-button" aria-label="上一页" disabled>‹</button>
+              <span id="page-info">第 1 页</span>
+              <button id="next-page" class="icon-button" aria-label="下一页" disabled>›</button>
+              <select id="page-size" aria-label="每页显示数量">
+                <option value="10">每页 10 条</option>
+                <option value="25" selected>每页 25 条</option>
+                <option value="50">每页 50 条</option>
+                <option value="100">每页 100 条</option>
+              </select>
+            </div>
           </footer>
         </div>
         <div class="hint-card">
@@ -285,6 +296,17 @@
       </div>
       <div id="detail-content"></div>
     </dialog>
+    <div id="context-menu" class="context-menu" hidden>
+      <button data-action="download" class="context-menu-item">↓ 下载音频</button>
+      <button data-action="parse" class="context-menu-item">≋ 解析音频</button>
+      <button data-action="export" class="context-menu-item">↗ 导出文本</button>
+      <div class="context-menu-divider"></div>
+      <button data-action="delete-audio" class="context-menu-item">删除音频文件</button>
+      <button data-action="delete-parsed" class="context-menu-item">删除转录数据</button>
+      <button data-action="delete-outputs" class="context-menu-item">删除导出文件</button>
+      <div class="context-menu-divider"></div>
+      <button data-action="delete-resource" class="context-menu-item danger">删除资源记录</button>
+    </div>
     <div id="toast" class="toast" role="status" hidden></div>
   </body>
 </html>

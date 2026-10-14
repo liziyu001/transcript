@@ -23,6 +23,9 @@ const state = {
   stage: "pipeline",
   detail: null,
   loading: false,
+  currentPage: 1,
+  pageSize: 25,
+  contextMenuResource: null,
 };
 const stageNames = {
   download: "下载音频",
@@ -127,6 +130,14 @@ function filtered() {
       `${r.title} ${r.url}`.toLowerCase().includes(state.search.toLowerCase()),
   );
 }
+function paginated(rows) {
+  const start = (state.currentPage - 1) * state.pageSize;
+  const end = start + state.pageSize;
+  return rows.slice(start, end);
+}
+function totalPages(rows) {
+  return Math.max(1, Math.ceil(rows.length / state.pageSize));
+}
 function renderSidebar() {
   $("#library-count").textContent = state.resources.length;
   $("#queue-count").textContent = state.jobs.filter((j) =>
@@ -180,11 +191,14 @@ function renderLibrary() {
         `<div class="stat"><div class="stat-name">${label}</div><div class="stat-number">${n}</div><div class="stat-note">${note}</div><span class="stat-icon">${icon}</span></div>`,
     )
     .join("");
-  const rows = filtered();
+  const allRows = filtered();
+  const maxPages = totalPages(allRows);
+  if (state.currentPage > maxPages) state.currentPage = maxPages;
+  const rows = paginated(allRows);
   $("#resource-rows").innerHTML = rows
     .map(
       (r) =>
-        `<tr><td class="check-cell"><input type="checkbox" data-select="${r.id}" aria-label="选择 ${esc(r.title)}" ${state.selected.has(r.id) ? "checked" : ""}></td><td><div class="resource-cell"><span class="media-icon">▷</span><div><button class="resource-name" data-resource="${r.id}">${esc(r.title)}</button><a class="resource-url" href="${esc(r.url)}" target="_blank" rel="noreferrer">${esc(r.url)}</a></div></div></td><td>${esc(
+        `<tr data-resource-row="${r.id}"><td class="check-cell"><input type="checkbox" data-select="${r.id}" aria-label="选择 ${esc(r.title)}" ${state.selected.has(r.id) ? "checked" : ""}></td><td><div class="resource-cell"><span class="media-icon">▷</span><div><button class="resource-name" data-resource="${r.id}">${esc(r.title)}</button><a class="resource-url" href="${esc(r.url)}" target="_blank" rel="noreferrer">${esc(r.url)}</a></div></div></td><td>${esc(
           r.collections
             .map((id) =>
               collectionName(state.collections.find((c) => c.id === id)),
@@ -207,7 +221,10 @@ function renderLibrary() {
     $("#empty-import").textContent = "＋ 添加第一份资源";
   }
   $("#resource-count").textContent =
-    `${rows.length} 个资源${state.search ? "符合搜索条件" : ""}`;
+    `${allRows.length} 个资源${state.search ? "符合搜索条件" : ""}`;
+  $("#page-info").textContent = `第 ${state.currentPage} / ${maxPages} 页`;
+  $("#prev-page").disabled = state.currentPage <= 1;
+  $("#next-page").disabled = state.currentPage >= maxPages;
   renderSelection();
 }
 function renderSelection() {
@@ -433,11 +450,13 @@ document.addEventListener("click", async (event) => {
 });
 $("#search").addEventListener("input", (e) => {
   state.search = e.target.value;
+  state.currentPage = 1;
   renderLibrary();
 });
 $("#mobile-collection").addEventListener("change", (e) => {
   state.collection = e.target.value ? Number(e.target.value) : null;
   state.selected.clear();
+  state.currentPage = 1;
   renderSidebar();
   renderLibrary();
 });
@@ -559,5 +578,131 @@ $("#settings-form").addEventListener("submit", async (e) => {
   }
 });
 $("#detail-dialog").addEventListener("close", () => (state.detail = null));
+$("#prev-page").addEventListener("click", () => {
+  if (state.currentPage > 1) {
+    state.currentPage--;
+    renderLibrary();
+  }
+});
+$("#next-page").addEventListener("click", () => {
+  const maxPages = totalPages(filtered());
+  if (state.currentPage < maxPages) {
+    state.currentPage++;
+    renderLibrary();
+  }
+});
+$("#page-size").addEventListener("change", (e) => {
+  state.pageSize = Number(e.target.value);
+  state.currentPage = 1;
+  renderLibrary();
+});
+// Context menu handlers
+document.addEventListener("contextmenu", (event) => {
+  const row = event.target.closest("[data-resource-row]");
+  if (!row) {
+    hideContextMenu();
+    return;
+  }
+  event.preventDefault();
+  const resourceId = Number(row.dataset.resourceRow);
+  const resource = state.resources.find((r) => r.id === resourceId);
+  if (!resource) return;
+  state.contextMenuResource = resource;
+  const menu = $("#context-menu");
+  const menuItems = menu.querySelectorAll("[data-action]");
+  menuItems.forEach((item) => {
+    const action = item.dataset.action;
+    if (action === "parse") {
+      item.disabled = !resource.audio.length;
+    } else if (action === "export") {
+      item.disabled = !resource.parsed.length;
+    } else if (action === "delete-audio") {
+      item.disabled = !resource.audio.length;
+    } else if (action === "delete-parsed") {
+      item.disabled = !resource.parsed.length;
+    } else if (action === "delete-outputs") {
+      item.disabled = !resource.outputs.length;
+    }
+  });
+  menu.style.left = event.pageX + "px";
+  menu.style.top = event.pageY + "px";
+  menu.hidden = false;
+});
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("#context-menu")) {
+    hideContextMenu();
+  }
+});
+function hideContextMenu() {
+  $("#context-menu").hidden = true;
+  state.contextMenuResource = null;
+}
+$("#context-menu").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-action]");
+  if (!button || !state.contextMenuResource) return;
+  const action = button.dataset.action;
+  const resource = state.contextMenuResource;
+  hideContextMenu();
+  try {
+    if (action === "download") {
+      state.selected.clear();
+      state.selected.add(resource.id);
+      await openJob("download");
+    } else if (action === "parse") {
+      state.selected.clear();
+      state.selected.add(resource.id);
+      await openJob("parse");
+    } else if (action === "export") {
+      state.selected.clear();
+      state.selected.add(resource.id);
+      await openJob("export");
+    } else if (action === "delete-audio") {
+      if (
+        confirm(`确定要删除「${resource.title}」的音频文件吗？\n\n此操作不可撤销。`)
+      ) {
+        await api(`/resources/${resource.id}/files/audio`, { method: "DELETE" });
+        toast("已删除音频文件");
+        await refresh();
+      }
+    } else if (action === "delete-parsed") {
+      if (
+        confirm(
+          `确定要删除「${resource.title}」的转录数据吗？\n\n此操作不可撤销。`,
+        )
+      ) {
+        await api(`/resources/${resource.id}/files/parsed`, {
+          method: "DELETE",
+        });
+        toast("已删除转录数据");
+        await refresh();
+      }
+    } else if (action === "delete-outputs") {
+      if (
+        confirm(
+          `确定要删除「${resource.title}」的导出文件吗？\n\n此操作不可撤销。`,
+        )
+      ) {
+        await api(`/resources/${resource.id}/files/outputs`, {
+          method: "DELETE",
+        });
+        toast("已删除导出文件");
+        await refresh();
+      }
+    } else if (action === "delete-resource") {
+      if (
+        confirm(
+          `确定要删除资源记录「${resource.title}」吗？\n\n这将删除该资源的所有文件（音频、转录数据、导出文件）和数据库记录。\n\n此操作不可撤销！`,
+        )
+      ) {
+        await api(`/resources/${resource.id}`, { method: "DELETE" });
+        toast("已删除资源记录");
+        state.selected.delete(resource.id);
+        await refresh();
+      }
+    }
+  } catch (error) {
+    toast(messageZh(error.message), true);
+  }
+});
 refresh();
 setInterval(refresh, 2000);

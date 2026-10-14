@@ -173,6 +173,59 @@ def create_app(data_dir=None, start_worker=True):
             raise HTTPException(404, "File missing; rerun the appropriate stage")
         return FileResponse(path, filename=path.name if download else None)
 
+    @app.delete("/api/resources/{resource_id}")
+    def delete_resource(resource_id: int):
+        """Delete a resource record and optionally its files."""
+        resource = store.one("SELECT * FROM resources WHERE id=?", (resource_id,))
+        if not resource:
+            raise HTTPException(404, "Resource not found")
+
+        # Delete all associated files
+        for category in ("audio", "parsed", "outputs"):
+            files = json.loads(resource[category])
+            for file_entry in files:
+                path = Path(file_entry["path"] if category == "audio" else file_entry).resolve()
+                if store.root in path.parents and path.is_file():
+                    try:
+                        path.unlink()
+                    except Exception:
+                        pass
+
+        # Delete from database
+        with store.connect() as db:
+            db.execute("DELETE FROM membership WHERE resource_id=?", (resource_id,))
+            db.execute("DELETE FROM resources WHERE id=?", (resource_id,))
+
+        return {"success": True, "message": "Resource deleted"}
+
+    @app.delete("/api/resources/{resource_id}/files/{category}")
+    def delete_resource_files(resource_id: int, category: str):
+        """Delete specific category of files (audio, parsed, or outputs) for a resource."""
+        if category not in ("audio", "parsed", "outputs"):
+            raise HTTPException(404, "Unknown file category")
+
+        resource = store.one("SELECT * FROM resources WHERE id=?", (resource_id,))
+        if not resource:
+            raise HTTPException(404, "Resource not found")
+
+        files = json.loads(resource[category])
+        deleted_count = 0
+
+        # Delete physical files
+        for file_entry in files:
+            path = Path(file_entry["path"] if category == "audio" else file_entry).resolve()
+            if store.root in path.parents and path.is_file():
+                try:
+                    path.unlink()
+                    deleted_count += 1
+                except Exception:
+                    pass
+
+        # Update database
+        store.execute(f"UPDATE resources SET {category}='[]' WHERE id=?", (resource_id,))
+
+        return {"success": True, "deleted": deleted_count, "message": f"Deleted {deleted_count} {category} files"}
+
     app.mount("/", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="ui")
     return app
 
