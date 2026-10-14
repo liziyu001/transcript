@@ -5,6 +5,7 @@ Currently supports Bilibili livestream recordings.
 
 import tempfile
 import subprocess
+import shutil
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
@@ -33,15 +34,15 @@ class AudioScraper:
     def __init__(self, config: Optional[ScraperConfig] = None):
         self.config = config or ScraperConfig()
 
-    def download_audio(self, url: str) -> AudioSource:
+    def download_audio(self, url: str) -> list[AudioSource]:
         """
-        Download audio from a video URL.
+        Download all audio files from a video URL.
 
         Args:
             url: Video URL (Bilibili livestream replay)
 
         Returns:
-            AudioSource with path to downloaded audio file
+            List of AudioSource objects with paths to downloaded audio files
 
         Raises:
             RuntimeError: If download fails after retry attempts
@@ -74,12 +75,10 @@ class AudioScraper:
                 if result.returncode != 0:
                     raise RuntimeError(f"yt-dlp failed: {result.stderr}")
 
-                # Find the downloaded file
-                audio_files = list(Path(tmpdir).glob("*"))
+                # Find all downloaded audio files
+                audio_files = sorted(Path(tmpdir).glob("*"))
                 if not audio_files:
-                    raise RuntimeError("No audio file downloaded")
-
-                audio_file = audio_files[0]
+                    raise RuntimeError("No audio files downloaded")
 
                 # Get metadata
                 info_cmd = [
@@ -110,15 +109,30 @@ class AudioScraper:
                     except (json.JSONDecodeError, KeyError):
                         pass
 
-                # Move file to permanent location since tmpdir will be cleaned up
-                permanent_path = Path(audio_file).resolve()
+                # Move all files to persistent location
+                persistent_dir = Path.home() / ".cache" / "bilibili_transcript"
+                persistent_dir.mkdir(parents=True, exist_ok=True)
 
-                return AudioSource(
-                    path=permanent_path,
-                    url=url,
-                    title=title,
-                    duration=duration,
-                )
+                # Sanitize filename for the cache
+                safe_title = title.replace("/", "_").replace("\\", "_")[:100]
+
+                audio_sources = []
+                for i, audio_file in enumerate(audio_files, 1):
+                    if len(audio_files) > 1:
+                        permanent_path = persistent_dir / f"{safe_title}_part{i}{audio_file.suffix}"
+                    else:
+                        permanent_path = persistent_dir / f"{safe_title}{audio_file.suffix}"
+
+                    shutil.move(str(audio_file), str(permanent_path))
+
+                    audio_sources.append(AudioSource(
+                        path=permanent_path,
+                        url=url,
+                        title=title,
+                        duration=duration,
+                    ))
+
+                return audio_sources
 
             except subprocess.TimeoutExpired:
                 raise RuntimeError(

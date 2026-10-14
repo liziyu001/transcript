@@ -46,21 +46,25 @@ def main():
     )
 
     try:
-        transcript = orchestrator.process_video(VIDEO_URL)
+        transcripts = orchestrator.process_video(VIDEO_URL)
 
         print("\n" + "=" * 60)
         print("RESULT")
         print("=" * 60)
         print(f"[OK] Transcription saved to: {OUTPUT_DIR}")
-        print(f"  - Plain text: {transcript.title}_*.txt")
-        print(f"  - With timestamps: {transcript.title}_*_with_ts.txt")
-        print(f"  - Full metadata: {transcript.title}_*.json")
-        print(f"  - VTT subtitles: {transcript.title}_*.vtt")
-        print(f"\n[OK] Total segments: {len(transcript.segments)}")
-        if transcript.segments:
-            total_secs = transcript.segments[-1].end if transcript.segments else 0
-            mins = int(total_secs // 60)
-            print(f"[OK] Duration: ~{mins} minutes")
+
+        for i, transcript in enumerate(transcripts, 1):
+            suffix = f" (part {i})" if len(transcripts) > 1 else ""
+            print(f"\n[Part {i}] {transcript.title}{suffix}")
+            print(f"  - Plain text: {transcript.title}_*.txt")
+            print(f"  - With timestamps: {transcript.title}_*_with_ts.txt")
+            print(f"  - Full metadata: {transcript.title}_*.json")
+            print(f"  - VTT subtitles: {transcript.title}_*.vtt")
+            print(f"  - Segments: {len(transcript.segments)}")
+            if transcript.segments:
+                total_secs = transcript.segments[-1].end if transcript.segments else 0
+                mins = int(total_secs // 60)
+                print(f"  - Duration: ~{mins} minutes")
 
         return 0
 

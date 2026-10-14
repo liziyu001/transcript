@@ -27,15 +27,15 @@ class TranscriptOrchestrator:
         self.output_dir = output_dir or Path("data/transcripts")
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def process_video(self, url: str) -> Transcript:
+    def process_video(self, url: str) -> list[Transcript]:
         """
-        Download and transcribe a video from URL.
+        Download and transcribe all audio from a video URL.
 
         Args:
             url: Video URL (Bilibili livestream replay)
 
         Returns:
-            Transcript object
+            List of Transcript objects
 
         Raises:
             RuntimeError: If any step fails
@@ -46,39 +46,46 @@ class TranscriptOrchestrator:
 
         # Step 1: Download audio
         print("[1/3] Downloading audio...")
-        audio_source = self.scraper.download_audio(url)
-        print(f"  [OK] Downloaded: {audio_source.title}")
-        if audio_source.duration:
-            print(f"  [OK] Duration: {audio_source.duration:.1f}s")
+        audio_sources = self.scraper.download_audio(url)
+        print(f"  [OK] Downloaded: {audio_sources[0].title}")
+        print(f"  [OK] Found {len(audio_sources)} audio file(s)")
+        if audio_sources[0].duration:
+            print(f"  [OK] Duration: {audio_sources[0].duration:.1f}s")
+
+        transcripts = []
 
         try:
-            # Step 2: Transcribe
-            print("\n[2/3] Transcribing audio...")
-            transcript = self.parser.transcribe(audio_source.path)
-            transcript.url = url
-            print(f"  [OK] Transcription complete")
+            for part_num, audio_source in enumerate(audio_sources, 1):
+                # Step 2: Transcribe
+                print(f"\n[2/3] Transcribing audio (part {part_num}/{len(audio_sources)})...")
+                transcript = self.parser.transcribe(audio_source.path)
+                transcript.url = url
+                print(f"  [OK] Transcription complete")
 
-            # Step 3: Save results
-            print("\n[3/3] Saving transcript...")
-            url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-            safe_title = self._sanitize_filename(transcript.title)
-            video_dir = self.output_dir / f"{safe_title}_{url_hash}"
-            self._save_transcript(transcript)
-            print(f"  [OK] Saved to {video_dir}")
+                # Step 3: Save results
+                print(f"\n[3/3] Saving transcript...")
+                url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+                safe_title = self._sanitize_filename(transcript.title)
+                video_dir = self.output_dir / f"{safe_title}_{url_hash}"
+                self._save_transcript(transcript, part_num if len(audio_sources) > 1 else None)
+                print(f"  [OK] Saved to {video_dir}")
+
+                transcripts.append(transcript)
 
             print(f"\n{'='*60}")
-            print(f"[OK] Complete!")
+            print(f"[OK] Complete! Processed {len(audio_sources)} audio file(s)")
             print(f"{'='*60}\n")
 
-            return transcript
+            return transcripts
 
         finally:
-            # Clean up temp audio file
-            if audio_source.path.exists():
-                audio_source.path.unlink()
-                print("  [OK] Cleaned up temporary audio file")
+            # Clean up temp audio files
+            for audio_source in audio_sources:
+                if audio_source.path.exists():
+                    audio_source.path.unlink()
+            print("  [OK] Cleaned up temporary audio files")
 
-    def _save_transcript(self, transcript: Transcript):
+    def _save_transcript(self, transcript: Transcript, part_num: Optional[int] = None):
         """Save transcript in multiple formats to a video-specific directory."""
         # Create directory for this video using URL hash
         url_hash = hashlib.md5(transcript.url.encode()).hexdigest()[:8]
@@ -88,7 +95,11 @@ class TranscriptOrchestrator:
 
         safe_title = self._sanitize_filename(transcript.title)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_name = f"{safe_title}_{timestamp}"
+
+        if part_num is not None:
+            base_name = f"{safe_title}_part{part_num}_{timestamp}"
+        else:
+            base_name = f"{safe_title}_{timestamp}"
 
         # Plain text
         txt_path = video_dir / f"{base_name}.txt"
@@ -115,6 +126,9 @@ class TranscriptOrchestrator:
                 for seg in transcript.segments
             ],
         }
+        if part_num is not None:
+            json_data["part_number"] = part_num
+
         json_path.write_text(json.dumps(json_data, ensure_ascii=False, indent=2), encoding="utf-8")
 
         # VTT subtitle format
