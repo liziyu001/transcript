@@ -198,7 +198,7 @@ Examples:
             # Initialize batch processor
             batch_processor = BatchProcessor(
                 orchestrator=orchestrator,
-                output_dir=args.output_dir,
+                collection_dir=orchestrator.output_dir,
                 collection_url=args.collection
             )
 
