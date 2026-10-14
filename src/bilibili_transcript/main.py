@@ -145,10 +145,22 @@ Examples:
         language=args.language,
     )
 
+    # Determine collection name if processing collection
+    collection_name = None
+    if args.collection:
+        import hashlib
+        # Use collection URL hash as directory name
+        collection_hash = hashlib.md5(args.collection.encode()).hexdigest()[:8]
+        # Extract series_id for better readability
+        match = re.search(r'lists/(\d+)', args.collection)
+        series_id = match.group(1) if match else "unknown"
+        collection_name = f"collection_{series_id}_{collection_hash}"
+
     orchestrator = TranscriptOrchestrator(
         scraper_config=scraper_config,
         parser_config=parser_config,
         output_dir=args.output_dir,
+        collection_name=collection_name,
     )
 
     try:
@@ -159,16 +171,16 @@ Examples:
             print("="*60)
             print(f"Processing: {args.video}\n")
 
-            transcript = orchestrator.process_video(args.video)
+            transcripts = orchestrator.process_video(args.video)
 
             print("\n" + "="*60)
             print("TRANSCRIPT COMPLETED")
             print("="*60)
-            print(f"Title: {transcript.title}")
-            print(f"Language: {transcript.language}")
-            print(f"Segments: {len(transcript.segments)}")
-            if transcript.segments:
-                print(f"\nFirst segment: {transcript.segments[0].text[:100]}...")
+            print(f"Title: {transcripts[0].title if transcripts else 'Unknown'}")
+            print(f"Language: {transcripts[0].language if transcripts else 'Unknown'}")
+            print(f"Total parts: {len(transcripts)}")
+            if transcripts and transcripts[0].segments:
+                print(f"\nFirst segment: {transcripts[0].segments[0].text[:100]}...")
             print("="*60)
 
         else:

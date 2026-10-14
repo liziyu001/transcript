@@ -21,10 +21,21 @@ class TranscriptOrchestrator:
         scraper_config: Optional[ScraperConfig] = None,
         parser_config: Optional[ParserConfig] = None,
         output_dir: Optional[Path] = None,
+        collection_name: Optional[str] = None,
     ):
         self.scraper = AudioScraper(scraper_config)
         self.parser = WhisperParser(parser_config)
-        self.output_dir = output_dir or Path("data/transcripts")
+        self.base_output_dir = output_dir or Path("data/transcripts")
+        self.collection_name = collection_name
+
+        # Determine actual output directory
+        if collection_name:
+            # Collection mode: base_output_dir/collection_name/
+            self.output_dir = self.base_output_dir / collection_name
+        else:
+            # Single video mode: base_output_dir/videos/
+            self.output_dir = self.base_output_dir / "videos"
+
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def process_video(self, url: str) -> list[Transcript]:

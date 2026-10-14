@@ -95,11 +95,11 @@ class BatchProgress:
 class BatchProcessor:
     """Process multiple videos with progress tracking and resume capability."""
 
-    def __init__(self, orchestrator, output_dir: Path, collection_url: str):
+    def __init__(self, orchestrator, collection_dir: Path, collection_url: str):
         self.orchestrator = orchestrator
-        self.output_dir = output_dir
+        self.collection_dir = collection_dir
         self.collection_url = collection_url
-        self.progress = BatchProgress(output_dir / '.batch_progress.json')
+        self.progress = BatchProgress(collection_dir / 'progress.json')
         self.cancelled = False
 
         # Set up signal handlers for graceful cancellation
@@ -167,13 +167,16 @@ class BatchProcessor:
                         continue
 
                 # Process the video
-                transcript = self.orchestrator.process_video(video_url)
+                transcripts = self.orchestrator.process_video(video_url)
 
                 # Mark as completed
                 self.progress.mark_completed(video_url)
 
-                print(f"  ✓ Completed: {transcript.title}")
-                print(f"  ✓ Segments: {len(transcript.segments)}")
+                print(f"  ✓ Completed: {transcripts[0].title if transcripts else 'Unknown'}")
+                print(f"  ✓ Total parts: {len(transcripts)}")
+                if transcripts:
+                    total_segments = sum(len(t.segments) for t in transcripts)
+                    print(f"  ✓ Total segments: {total_segments}")
 
             except KeyboardInterrupt:
                 # Re-raise to trigger cancellation handler
@@ -196,20 +199,20 @@ class BatchProcessor:
 
     def _has_existing_transcript(self, video_url: str) -> bool:
         """Check if transcript files already exist for this video."""
-        # Extract video ID from URL
-        import re
-        match = re.search(r'/video/([A-Za-z0-9]+)', video_url)
-        if not match:
-            return False
+        import hashlib
 
-        video_id = match.group(1)
+        # Use same hash logic as orchestrator
+        url_hash = hashlib.md5(video_url.encode()).hexdigest()[:8]
 
-        # Check for transcript files in output directory
-        # The orchestrator creates files like: {output_dir}/{video_id}/transcript.json
-        video_dir = self.output_dir / video_id
-        transcript_file = video_dir / 'transcript.json'
+        # Check for any directories containing this hash
+        # Directory pattern: {title}_{hash}
+        for item in self.collection_dir.iterdir():
+            if item.is_dir() and item.name.endswith(f"_{url_hash}"):
+                # Check if it contains transcript files
+                if any(item.glob("*.json")):
+                    return True
 
-        return transcript_file.exists()
+        return False
 
     def _print_stats(self):
         """Print current processing statistics."""
