@@ -210,6 +210,23 @@ wheels = [
 ]
 
 [[package]]
+name = "bilibili-audio-scraper"
+version = "0.1.0"
+source = { editable = "audio-scraper" }
+dependencies = [
+    { name = "requests", version = "2.32.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "requests", version = "2.34.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "yt-dlp", version = "2025.10.14", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "yt-dlp", version = "2026.8.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "requests", specifier = ">=2.0.0" },
+    { name = "yt-dlp", specifier = ">=2024.1.0" },
+]
+
+[[package]]
 name = "bilibili-transcript"
 version = "0.1.0"
 source = { editable = "." }
@@ -217,13 +234,10 @@ dependencies = [
     { name = "av", version = "15.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "av", version = "17.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.10.*'" },
     { name = "av", version = "18.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "bilibili-audio-scraper" },
     { name = "faster-whisper" },
     { name = "pydantic", version = "2.13.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "pydantic", version = "2.14.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
-    { name = "requests", version = "2.32.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
-    { name = "requests", version = "2.34.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
-    { name = "yt-dlp", version = "2025.10.14", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
-    { name = "yt-dlp", version = "2026.8.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
 
 [package.optional-dependencies]
@@ -238,13 +252,12 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "av", specifier = ">=10.0.0,<19.0.0" },
+    { name = "bilibili-audio-scraper", editable = "audio-scraper" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
     { name = "faster-whisper", specifier = ">=1.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "requests", specifier = ">=2.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
-    { name = "yt-dlp", specifier = ">=2024.1.0" },
 ]
 provides-extras = ["dev"]
 

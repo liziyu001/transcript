@@ -8,12 +8,14 @@ version = "0.1.0"
 description = "Transcribe Bilibili livestream recordings to text"
 requires-python = ">=3.9"
 dependencies = [
-    "yt-dlp>=2024.1.0",
+    "bilibili-audio-scraper",
     "faster-whisper>=1.0.0",
     "av>=10.0.0,<19.0.0",
     "pydantic>=2.0.0",
-    "requests>=2.0.0",
 ]
+
+[tool.uv.sources]
+bilibili-audio-scraper = { path = "audio-scraper", editable = true }
 
 [project.optional-dependencies]
 dev = [

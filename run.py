@@ -32,7 +32,7 @@ def main():
     print("Bilibili Transcript Generator")
     print("=" * 60)
 
-    scraper_config = ScraperConfig(quiet=False)
+    scraper_config = ScraperConfig(quiet=False, output_dir=OUTPUT_DIR / ".audio_cache")
     parser_config = ParserConfig(
         model_size=MODEL_SIZE,
         device=DEVICE,

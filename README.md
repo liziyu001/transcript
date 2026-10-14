@@ -29,6 +29,32 @@ uv pip install -e .
 
 ## Usage
 
+### Standalone audio scraper
+
+The scraper is an independent `uv` project in `audio-scraper/`. It only installs
+`requests` and `yt-dlp`, so collection discovery and downloading can run without
+the transcription dependencies. Audio is saved as `.m4a` under `data/audio/` by
+video ID. Install `ffmpeg` and ensure it is on your `PATH` for audio extraction.
+
+```bash
+# Preview the video URLs in a collection (no audio is downloaded)
+uv run --project audio-scraper bilibili-audio-scraper list "https://space.bilibili.com/45502/lists/31284?type=series"
+
+# Save the URL list for later use
+uv run --project audio-scraper bilibili-audio-scraper list "https://space.bilibili.com/45502/lists/31284?type=series" --output videos.txt
+
+# Download from a saved list, repeated video URLs, or directly from a collection
+uv run --project audio-scraper bilibili-audio-scraper download --urls-file videos.txt
+uv run --project audio-scraper bilibili-audio-scraper download --video "https://www.bilibili.com/video/BV1xx411c7mD" --video "https://www.bilibili.com/video/BV1nWpz6zE4U"
+uv run --project audio-scraper bilibili-audio-scraper download --collection "https://space.bilibili.com/45502/lists/31284?type=series" --output-dir data/audio
+```
+
+The download command continues past individual failures and exits with a nonzero
+status if any URL failed. Rerunning it skips existing Bilibili `.m4a` files;
+`--force` downloads them again. Use `--timeout` and `--retries` to adjust network
+behavior. URL files contain one URL per line, and may have
+blank lines or lines starting with `#`.
+
 ### Single Video
 
 Process one video at a time:
@@ -50,6 +76,9 @@ The tool will:
 2. Process each video sequentially
 3. Save progress after each video
 4. Skip videos that already have transcripts (unless `--no-skip-existing` is used)
+
+The transcription command keeps downloaded audio in `data/transcripts/.audio_cache/`
+so a failed transcription can reuse it on the next run.
 
 ### Resume Interrupted Processing
 

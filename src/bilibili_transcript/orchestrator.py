@@ -23,9 +23,11 @@ class TranscriptOrchestrator:
         output_dir: Optional[Path] = None,
         collection_name: Optional[str] = None,
     ):
-        self.scraper = AudioScraper(scraper_config)
-        self.parser = WhisperParser(parser_config)
         self.base_output_dir = output_dir or Path("data/transcripts")
+        self.scraper = AudioScraper(scraper_config or ScraperConfig(
+            output_dir=self.base_output_dir / ".audio_cache"
+        ))
+        self.parser = WhisperParser(parser_config)
         self.collection_name = collection_name
 
         # Determine actual output directory
@@ -65,36 +67,27 @@ class TranscriptOrchestrator:
 
         transcripts = []
 
-        try:
-            for part_num, audio_source in enumerate(audio_sources, 1):
-                # Step 2: Transcribe
-                print(f"\n[2/3] Transcribing audio (part {part_num}/{len(audio_sources)})...")
-                transcript = self.parser.transcribe(audio_source.path)
-                transcript.url = url
-                print(f"  [OK] Transcription complete")
+        for part_num, audio_source in enumerate(audio_sources, 1):
+            # Step 2: Transcribe
+            print(f"\n[2/3] Transcribing audio (part {part_num}/{len(audio_sources)})...")
+            transcript = self.parser.transcribe(audio_source.path)
+            transcript.url = url
+            print("  [OK] Transcription complete")
 
-                # Step 3: Save results
-                print(f"\n[3/3] Saving transcript...")
-                url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-                safe_title = self._sanitize_filename(transcript.title)
-                video_dir = self.output_dir / f"{safe_title}_{url_hash}"
-                self._save_transcript(transcript, part_num if len(audio_sources) > 1 else None)
-                print(f"  [OK] Saved to {video_dir}")
+            # Step 3: Save results
+            print("\n[3/3] Saving transcript...")
+            url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+            safe_title = self._sanitize_filename(transcript.title)
+            video_dir = self.output_dir / f"{safe_title}_{url_hash}"
+            self._save_transcript(transcript, part_num if len(audio_sources) > 1 else None)
+            print(f"  [OK] Saved to {video_dir}")
 
-                transcripts.append(transcript)
+            transcripts.append(transcript)
 
-            print(f"\n{'='*60}")
-            print(f"[OK] Complete! Processed {len(audio_sources)} audio file(s)")
-            print(f"{'='*60}\n")
-
-            return transcripts
-
-        finally:
-            # Clean up temp audio files
-            for audio_source in audio_sources:
-                if audio_source.path.exists():
-                    audio_source.path.unlink()
-            print("  [OK] Cleaned up temporary audio files")
+        print(f"\n{'='*60}")
+        print(f"[OK] Complete! Processed {len(audio_sources)} audio file(s)")
+        print(f"{'='*60}\n")
+        return transcripts
 
     def _save_transcript(self, transcript: Transcript, part_num: Optional[int] = None):
         """Save transcript in multiple formats to a video-specific directory."""
