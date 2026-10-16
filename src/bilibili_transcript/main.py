@@ -5,94 +5,11 @@ Main entry point for bilibili-transcript tool.
 import argparse
 from pathlib import Path
 import re
-import requests
-from typing import List
+from bilibili_audio_scraper import get_video_urls_from_collection
 from .orchestrator import TranscriptOrchestrator
 from .scraper import ScraperConfig
 from .parser import ParserConfig
 from .batch_processor import BatchProcessor
-
-
-def get_video_urls_from_collection(collection_url: str) -> List[str]:
-    """
-    Extract all video URLs from a Bilibili collection/series page.
-
-    Args:
-        collection_url: URL of the collection page, e.g.,
-                       https://space.bilibili.com/45502/lists/31284?type=series
-
-    Returns:
-        List of video URLs in the format https://www.bilibili.com/video/{bvid}
-    """
-    # Extract mid (user ID) and series_id from the URL
-    # Format: https://space.bilibili.com/{mid}/lists/{series_id}?type=series
-    match = re.search(r'space\.bilibili\.com/(\d+)/lists/(\d+)', collection_url)
-    if not match:
-        raise ValueError(f"Invalid collection URL format: {collection_url}")
-
-    mid = match.group(1)
-    series_id = match.group(2)
-
-    print(f"Fetching collection: mid={mid}, series_id={series_id}")
-
-    # Bilibili API endpoint for series archives
-    api_url = "https://api.bilibili.com/x/series/archives"
-
-    all_video_urls = []
-    page_num = 1
-    page_size = 30
-
-    while True:
-        # Make API request with browser headers
-        params = {
-            'mid': mid,
-            'series_id': series_id,
-            'pn': page_num,
-            'ps': page_size,
-            'sort': 'desc',
-            'only_normal': 'true'
-        }
-
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Referer': 'https://space.bilibili.com/',
-        }
-
-        response = requests.get(api_url, params=params, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-
-        # Check if request was successful
-        if data.get('code') != 0:
-            raise RuntimeError(f"API returned error code {data.get('code')}: {data.get('message')}")
-
-        # Extract archives from response
-        archives = data.get('data', {}).get('archives', [])
-        if not archives:
-            break  # No more videos
-
-        # Extract BV IDs and construct URLs
-        for archive in archives:
-            bvid = archive.get('bvid')
-            if bvid:
-                video_url = f"https://www.bilibili.com/video/{bvid}"
-                all_video_urls.append(video_url)
-
-        # Check pagination info
-        page_info = data.get('data', {}).get('page', {})
-        total_videos = page_info.get('total', 0)
-        current_count = len(all_video_urls)
-
-        print(f"Fetched page {page_num}: {len(archives)} videos (total so far: {current_count}/{total_videos})")
-
-        # Check if we've fetched all videos
-        if current_count >= total_videos:
-            break
-
-        page_num += 1
-
-    print(f"\nTotal videos found: {len(all_video_urls)}")
-    return all_video_urls
 
 
 def main():
@@ -138,7 +55,7 @@ Examples:
     args = parser.parse_args()
 
     # Initialize components
-    scraper_config = ScraperConfig(quiet=False)
+    scraper_config = ScraperConfig(quiet=False, output_dir=args.output_dir / ".audio_cache")
     parser_config = ParserConfig(
         model_size=args.model_size,
         device=args.device,

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bilibili-audio-scraper"
+version = "0.1.0"
+description = "List Bilibili collection videos and download their audio"
+requires-python = ">=3.9"
+dependencies = ["requests>=2.0.0", "yt-dlp>=2024.1.0"]
+
+[project.scripts]
+bilibili-audio-scraper = "bilibili_audio_scraper.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bilibili_audio_scraper"]

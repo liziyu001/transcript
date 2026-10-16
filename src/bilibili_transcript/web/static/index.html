@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>转录工作台</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23e87946'/%3E%3Cpath d='M8 10h16M16 10v15' stroke='white' stroke-width='3'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/styles.css?v=zh-cn-2" />
+    <script src="/zh.js?v=zh-cn-2" defer></script>
+    <script src="/app.js?v=zh-cn-2" defer></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="#library"
+        ><span class="brand-mark">T<span>•</span></span
+        ><span>转录工作台<span class="brand-sub">个人转录工作台</span></span></a
+      >
+      <div class="workspace">
+        <span class="workspace-icon">个</span>
+        <div>个人工作区<small>本地资源库</small></div>
+        <span class="local-dot"></span>
+      </div>
+      <p class="nav-label">工作区</p>
+      <nav aria-label="主导航">
+        <button data-nav="library" class="nav-item active">
+          <span>▦</span>资源中心
+          <span id="library-count" class="nav-count">0</span>
+        </button>
+        <button data-nav="jobs" class="nav-item">
+          <span>☷</span>任务队列
+          <span id="queue-count" class="nav-count">0</span>
+        </button>
+        <button data-nav="settings" class="nav-item">
+          <span>⚙</span>配置管理
+        </button>
+      </nav>
+      <div class="collection-heading">
+        <p class="nav-label">合集</p>
+        <button class="icon-button" id="new-collection" aria-label="导入合集">
+          +
+        </button>
+      </div>
+      <div id="collections"></div>
+      <div class="sidebar-foot">
+        <span class="status-dot" id="connection-dot"></span
+        ><span id="connection">正在连接…</span><small>数据保存在本机</small>
+      </div>
+    </aside>
+    <main>
+      <header class="topbar">
+        <span
+          >工作区 <span class="breadcrumb">/</span>
+          <strong id="breadcrumb">资源中心</strong></span
+        ><span class="local-tag">◉ &nbsp; 本地运行</span>
+      </header>
+      <section id="library-view" class="view">
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">有序管理你的媒体资源</div>
+            <h1 id="library-title">资源中心</h1>
+            <p>汇集视频资源，轻松转为文字。</p>
+          </div>
+          <button id="import-open" class="primary">＋ &nbsp; 添加资源</button>
+        </div>
+        <div id="stats" class="stats"></div>
+        <div class="library-panel">
+          <div class="panel-top">
+            <div class="tabs">
+              <button class="tab active" data-filter="all">全部资源</button
+              ><button class="tab" data-filter="ready">音频已就绪</button
+              ><button class="tab" data-filter="parsed">已转录</button>
+            </div>
+            <label class="resource-sort">排序
+              <select id="resource-sort" aria-label="资源排序">
+                <option value="added-desc">最近添加</option>
+                <option value="added-asc">最早添加</option>
+                <option value="duration-desc">总时长：从长到短</option>
+                <option value="duration-asc">总时长：从短到长</option>
+                <option value="title-asc">标题：升序</option>
+                <option value="title-desc">标题：降序</option>
+              </select>
+            </label>
+            <label class="search"
+              ><span>⌕</span
+              ><input
+                id="search"
+                type="search"
+                placeholder="搜索标题或链接"
+                aria-label="搜索资源"
+            /></label>
+          </div>
+          <div class="selection-bar">
+            <select id="mobile-collection" aria-label="筛选合集">
+              <option value="">全部合集</option>
+            </select>
+            <span id="selection-label">选择资源后即可创建任务</span>
+            <div class="actions">
+              <button data-stage="metadata" disabled>↻ <span>视频信息</span></button>
+              <button data-stage="download" disabled>↓ <span>下载</span></button
+              ><button data-stage="parse" disabled>≋ <span>解析</span></button
+              ><button data-stage="export" disabled>↗ <span>导出</span></button
+              ><button data-stage="pipeline" class="dark" disabled>
+                ▶ <span>完整流程</span>
+              </button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="check-cell">
+                    <input
+                      id="select-all"
+                      type="checkbox"
+                      aria-label="全选当前筛选结果"
+                    />
+                  </th>
+                  <th>资源</th>
+                  <th>合集</th>
+                  <th>音频</th>
+                  <th>转录文本</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="resource-rows"></tbody>
+            </table>
+          </div>
+          <div id="library-empty" class="empty" hidden>
+            <div class="empty-icon">▤</div>
+            <h2>从添加第一份资源开始</h2>
+            <p>
+              导入哔哩哔哩合集，或粘贴视频链接。<br />随时下载音频并转录为文字。
+            </p>
+            <button class="primary" id="empty-import">＋ 添加第一份资源</button>
+            <div class="empty-flow">
+              <span>01 &nbsp; 收集</span><i>→</i><span>02 &nbsp; 下载</span
+              ><i>→</i><span>03 &nbsp; 转录</span>
+            </div>
+          </div>
+          <footer class="table-footer">
+            <span id="resource-count">0 个资源</span
+            ><span>原始链接与任务进度会自动保存</span>
+            <div class="pagination">
+              <button id="prev-page" class="icon-button" aria-label="上一页" disabled>‹</button>
+              <span id="page-info">第 1 页</span>
+              <button id="next-page" class="icon-button" aria-label="下一页" disabled>›</button>
+              <select id="page-size" aria-label="每页显示数量">
+                <option value="10">每页 10 条</option>
+                <option value="25" selected>每页 25 条</option>
+                <option value="50">每页 50 条</option>
+                <option value="100">每页 100 条</option>
+              </select>
+            </div>
+          </footer>
+        </div>
+        <div class="hint-card">
+          <span class="hint-symbol">↳</span>
+          <div>
+            <strong>每一步，都由你掌控。</strong>
+            <p>
+              可单独运行各个阶段，也可通过完整流程依次下载、解析并导出。试运行可提前预览任务。
+            </p>
+          </div>
+          <button id="hint-settings" class="text-button">查看配置 ↗</button>
+        </div>
+      </section>
+      <section id="jobs-view" class="view" hidden>
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">任务进度，一目了然</div>
+            <h1>任务队列</h1>
+            <p>下载与元信息查询依次执行；就绪的云端解析和导出可并发运行，不受下载队列阻塞。</p>
+          </div>
+          <span class="subtle-pill">单个工作进程 · 按顺序处理</span>
+        </div>
+        <div id="jobs-list"></div>
+      </section>
+      <section id="settings-view" class="view" hidden>
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">按需调整处理方式</div>
+            <h1>配置管理</h1>
+            <p>此处设置用于新任务，已排队的任务保留原有配置。</p>
+          </div>
+          <button class="primary" type="submit" form="settings-form">
+            保存配置
+          </button>
+        </div>
+        <form id="settings-form"></form>
+      </section>
+      <footer class="app-footer">
+        <span>转录工作台</span><span>让视频里的内容，成为可用的文字。</span>
+      </footer>
+    </main>
+    <dialog id="import-dialog">
+      <form id="import-form">
+        <div class="dialog-heading">
+          <div>
+            <div class="eyebrow">扩充你的资源库</div>
+            <h2>添加资源</h2>
+          </div>
+          <button
+            type="button"
+            data-close="import-dialog"
+            class="icon-button"
+            aria-label="关闭"
+          >
+            ×
+          </button>
+        </div>
+        <div class="segmented">
+          <button type="button" data-import-mode="links" class="active">
+            粘贴视频链接</button
+          ><button type="button" data-import-mode="collection">导入合集</button>
+        </div>
+        <div id="links-fields">
+          <label
+            >视频链接<textarea
+              id="links-input"
+              rows="7"
+              placeholder="https://www.bilibili.com/video/BV…&#10;https://www.bilibili.com/video/BV…"
+            ></textarea>
+          </label>
+          <p class="field-note">
+            每行填写一个完整的哔哩哔哩视频链接，保存至“通用”合集。重复链接会跳过，视频的所有分P均会纳入处理。
+          </p>
+        </div>
+        <div id="collection-fields" hidden>
+          <label
+            >合集名称<input
+              id="collection-name"
+              placeholder="例如：设计讲座"
+              maxlength="120" /></label
+          ><label
+            >合集链接<input
+              id="collection-url"
+              type="url"
+              placeholder="https://space.bilibili.com/…/lists/…?type=series"
+          /></label>
+          <p class="field-note">
+            支持哔哩哔哩系列（series）和合集（season）。链接解析会加入任务队列，重复导入同一合集仅添加新资源。
+          </p>
+          <label class="checkbox-label"
+            ><input id="collection-dry" type="checkbox" />试运行 —
+            仅校验并预览，不访问网络</label
+          >
+        </div>
+        <p class="form-error" id="import-error" role="alert"></p>
+        <div class="dialog-footer">
+          <button type="button" data-close="import-dialog">取消</button
+          ><button class="primary" type="submit" id="import-submit">
+            添加至通用合集
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="job-dialog">
+      <form id="job-form">
+        <div class="dialog-heading">
+          <div>
+            <div class="eyebrow">开始处理资源</div>
+            <h2 id="job-dialog-title">创建任务</h2>
+          </div>
+          <button
+            type="button"
+            class="icon-button"
+            data-close="job-dialog"
+            aria-label="关闭"
+          >
+            ×
+          </button>
+        </div>
+        <p id="job-description"></p>
+        <div id="job-config-summary" class="config-summary"></div>
+        <label class="checkbox-label"
+          ><input id="job-dry" type="checkbox" />试运行
+          <span class="muted">— 预览步骤并检查缺少的前置条件</span></label
+        ><label class="checkbox-label"
+          ><input id="job-force" type="checkbox" />重新处理已有结果</label
+        >
+        <p class="field-note">
+          试运行不会下载媒体、加载模型或修改资源。完整流程默认复用已有音频与转录结果，勾选重新处理后才会重做。
+        </p>
+        <p class="form-error" id="job-error" role="alert"></p>
+        <div class="dialog-footer">
+          <button type="button" data-close="job-dialog">取消</button
+          ><button type="submit" class="primary">加入任务队列 →</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="detail-dialog" class="detail-dialog">
+      <div class="dialog-heading">
+        <div>
+          <div class="eyebrow" id="detail-eyebrow">详细信息</div>
+          <h2 id="detail-title">详细信息</h2>
+        </div>
+        <button
+          data-close="detail-dialog"
+          class="icon-button"
+          aria-label="关闭"
+        >
+          ×
+        </button>
+      </div>
+      <div id="detail-content"></div>
+    </dialog>
+    <div id="context-menu" class="context-menu" hidden>
+      <button data-action="download" class="context-menu-item">↓ 下载音频</button>
+      <button data-action="parse" class="context-menu-item">≋ 解析音频</button>
+      <button data-action="export" class="context-menu-item">↗ 导出文本</button>
+      <div class="context-menu-divider"></div>
+      <button data-action="delete-audio" class="context-menu-item">删除音频文件</button>
+      <button data-action="delete-parsed" class="context-menu-item">删除转录数据</button>
+      <button data-action="delete-outputs" class="context-menu-item">删除导出文件</button>
+      <div class="context-menu-divider"></div>
+      <button data-action="delete-resource" class="context-menu-item danger">删除资源记录</button>
+    </div>
+    <div id="toast" class="toast" role="status" hidden></div>
+  </body>
+</html>
