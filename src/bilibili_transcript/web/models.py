@@ -1,10 +1,12 @@
 """Validated inputs shared by HTTP handlers and workers."""
 
+from __future__ import annotations
+
 import re
-from typing import Literal
+from typing import Literal, Optional
 from urllib.parse import urlparse, parse_qs
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
 
 def video_url(value: str) -> str:
@@ -45,12 +47,31 @@ class DownloaderSettings(BaseModel):
 
 
 class ParserSettings(BaseModel):
+    provider: Literal["whisper", "asr_flash", "paraformer"] = "whisper"
+    asr_model: Literal["qwen-audio-3.1-asr-flash-filetrans", "qwen3-asr-flash-filetrans"] = (
+        "qwen-audio-3.1-asr-flash-filetrans"
+    )
+    region: Literal["beijing", "singapore"] = "beijing"
+    api_timeout: int = Field(7200, ge=60, le=86400)
+    # Write-only fields: never included in settings, job snapshots or exports.
+    api_key: Optional[SecretStr] = Field(None, exclude=True)
+    clear_api_key: bool = Field(False, exclude=True)
     model: Literal["tiny", "base", "small", "medium", "large-v3", "turbo"] = "base"
     device: Literal["cpu", "cuda", "auto"] = "cpu"
     compute_type: Literal["default", "auto", "int8", "float16", "float32"] = "int8"
     language: str = Field("zh", max_length=10)
     beam_size: int = Field(5, ge=1, le=10)
     vad_filter: bool = True
+
+    @model_validator(mode="after")
+    def check_cloud_settings(self):
+        if self.provider == "paraformer" and self.region != "beijing":
+            raise ValueError("Paraformer requires the Beijing region and a Beijing API key.")
+        if self.api_key and any(
+            ord(c) < 33 or ord(c) > 126 for c in self.api_key.get_secret_value().strip()
+        ):
+            raise ValueError("API key must contain only printable ASCII characters without spaces.")
+        return self
 
     @field_validator("language")
     @classmethod

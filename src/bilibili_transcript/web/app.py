@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -29,6 +30,28 @@ def create_app(data_dir=None, start_worker=True):
 
     app = FastAPI(title="Transcript Studio", lifespan=lifespan)
     app.state.store = store
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request, exc):
+        # Pydantic includes raw input in errors; settings input may contain a key.
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": [
+                    {
+                        "loc": error["loc"],
+                        "msg": error["msg"],
+                        "type": error["type"],
+                        "ctx": {
+                            key: value
+                            for key, value in error.get("ctx", {}).items()
+                            if key in ("min_length", "max_length", "ge", "le", "gt", "lt")
+                        },
+                    }
+                    for error in exc.errors()
+                ]
+            },
+        )
 
     @app.middleware("http")
     async def same_origin(request: Request, call_next):
@@ -80,12 +103,12 @@ def create_app(data_dir=None, start_worker=True):
 
     @app.get("/api/settings")
     def settings():
-        return store.settings()
+        return store.public_settings()
 
     @app.put("/api/settings")
     def save_settings(body: Settings):
-        store.execute("UPDATE settings SET value=? WHERE id=1", (body.model_dump_json(),))
-        return body
+        store.save_settings(body)
+        return store.public_settings()
 
     @app.get("/api/jobs")
     def jobs():
@@ -224,7 +247,11 @@ def create_app(data_dir=None, start_worker=True):
         # Update database
         store.execute(f"UPDATE resources SET {category}='[]' WHERE id=?", (resource_id,))
 
-        return {"success": True, "deleted": deleted_count, "message": f"Deleted {deleted_count} {category} files"}
+        return {
+            "success": True,
+            "deleted": deleted_count,
+            "message": f"Deleted {deleted_count} {category} files",
+        }
 
     app.mount("/", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="ui")
     return app

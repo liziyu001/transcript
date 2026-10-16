@@ -71,6 +71,11 @@ function post(path, body) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
+function parserSummary(parser) {
+  if (!parser.provider || parser.provider === "whisper")
+    return `Whisper ${parser.model} · ${parser.device} · ${parser.language}`;
+  return `${parser.provider === "paraformer" ? "Paraformer v2" : parser.asr_model} · ${parser.region === "singapore" ? "新加坡" : "北京"} · ${parser.language}`;
+}
 function date(value) {
   return new Date(value).toLocaleString("zh-CN", {
     month: "short",
@@ -309,7 +314,7 @@ async function openJob(stage) {
     `已选择 ${state.selected.size} 个资源。 ${{ download: "将音频保存到本地，以便后续解析。", parse: "将已下载的音频转为可复用的转录数据。", export: "从已保存的转录数据生成文件。", pipeline: "在一个任务中依次完成下载 → 解析 → 导出。" }[stage]}`;
   const s = state.settings;
   $("#job-config-summary").innerHTML =
-    `下载器: 超时 ${s.downloader.timeout} 秒 · 重试 ${s.downloader.retries} 次<br>解析器: ${esc(s.parser.model)} · ${esc(s.parser.device)} · ${esc(s.parser.language)}<br>输出: ${s.output.formats.map(esc).join(", ").toUpperCase()}<br><span class="muted">如需调整默认设置，请先前往配置管理。</span>`;
+    `下载器: 超时 ${s.downloader.timeout} 秒 · 重试 ${s.downloader.retries} 次<br>解析器: ${esc(parserSummary(s.parser))}<br>输出: ${s.output.formats.map(esc).join(", ").toUpperCase()}<br><span class="muted">如需调整默认设置，请先前往配置管理。切换解析器后，请勾选重新处理以替换已有转录。</span>`;
   $("#job-error").textContent = "";
   $("#job-dry").checked = false;
   $("#job-force").checked = false;
@@ -383,8 +388,49 @@ function renderSettings() {
       )
       .join("");
   $("#settings-form").innerHTML =
-    `<section class="settings-card"><div><h3>01 &nbsp; 下载器</h3><p>设置合集解析和音频下载的网络参数。</p></div><div class="settings-fields"><label>请求超时（秒）<input name="timeout" type="number" min="5" max="600" value="${s.downloader.timeout}" required></label><label>重试次数<input name="retries" type="number" min="0" max="20" value="${s.downloader.retries}" required></label><p class="field-note span-two">音频会持久保存。默认复用已有音频，创建任务时启用重新处理即可重新下载。</p></div></section><section class="settings-card"><div><h3>02 &nbsp; 解析器</h3><p>使用 faster-whisper 在本地识别语音。首次使用模型时会下载模型权重。</p></div><div class="settings-fields"><label>Whisper 模型<select name="model">${options(["tiny", "base", "small", "medium", "large-v3", "turbo"], s.parser.model)}</select></label><label>识别语言<input name="language" value="${esc(s.parser.language)}" required maxlength="10"><span class="field-note">zh 中文、en 英文、ja 日文；auto 自动检测</span></label><label>计算设备<select name="device">${options(["cpu", "auto", "cuda"], s.parser.device)}</select></label><label>计算精度<select name="compute_type">${options(["int8", "default", "auto", "float16", "float32"], s.parser.compute_type)}</select></label><label>束搜索宽度<input name="beam_size" type="number" min="1" max="10" value="${s.parser.beam_size}" required></label><label class="checkbox-label"><input name="vad_filter" type="checkbox" ${s.parser.vad_filter ? "checked" : ""}>跳过静音片段（VAD）</label><p class="field-note span-two">随附的 Docker 镜像支持 CPU + int8。CUDA 需要另行配置 NVIDIA 环境。较大的模型会占用更多内存，建议从 tiny 或 base 开始。</p></div></section><section class="settings-card"><div><h3>03 &nbsp; 输出</h3><p>直接导出已有转录数据，无需重复进行语音识别。</p></div><div><label>文件格式</label><div class="format-options">${["txt", "vtt", "srt", "json"].map((f) => `<label class="checkbox-label"><input type="checkbox" name="formats" value="${f}" ${s.output.formats.includes(f) ? "checked" : ""}>${f.toUpperCase()}</label>`).join("")}</div><label class="checkbox-label" style="margin-top:25px"><input name="timestamps" type="checkbox" ${s.output.timestamps ? "checked" : ""}>在纯文本中添加时间戳</label><p class="field-note">每次导出都会创建独立的版本文件夹。当前文件可在资源详情中查看，历史文件仍保留在磁盘上。</p></div></section><p class="form-error" id="settings-error" role="alert"></p>`;
+    `<section class="settings-card"><div><h3>01 &nbsp; 下载器</h3><p>设置合集解析和音频下载的网络参数。</p></div><div class="settings-fields"><label>请求超时（秒）<input name="timeout" type="number" min="5" max="600" value="${s.downloader.timeout}" required></label><label>重试次数<input name="retries" type="number" min="0" max="20" value="${s.downloader.retries}" required></label><p class="field-note span-two">音频会持久保存。默认复用已有音频，创建任务时启用重新处理即可重新下载。</p></div></section><section class="settings-card"><div><h3>02 &nbsp; 解析器</h3><p>选择本地 Whisper 或阿里云语音识别。云端模式会自动上传已下载的音频，无需配置存储桶。</p></div><div class="settings-fields">
+<label>解析方式<select name="provider">${options(["whisper", "asr_flash", "paraformer"], s.parser.provider || "whisper")}</select></label>
+<label>识别语言<input name="language" value="${esc(s.parser.language)}" required maxlength="10"><span class="field-note">zh 中文、en 英文；混合语言建议 auto</span></label>
+<div class="settings-fields span-two" id="cloud-settings">
+<label id="asr-model-field">ASR Flash 版本<select name="asr_model">${options(["qwen-audio-3.1-asr-flash-filetrans", "qwen3-asr-flash-filetrans"], s.parser.asr_model)}</select><span class="field-note">使用长录音版本，保留字幕时间戳。</span></label>
+<label>API 地域<select name="region">${options(["beijing", "singapore"], s.parser.region)}</select><span class="field-note">Paraformer 仅支持北京；密钥必须与地域匹配。</span></label>
+<label>阿里云百炼 API Key<input name="api_key" type="password" autocomplete="new-password" spellcheck="false" placeholder="输入新密钥；留空保留已保存的密钥"><span class="field-note" id="api-key-status"></span></label>
+<label>云端等待上限（秒）<input name="api_timeout" type="number" min="60" max="86400" value="${s.parser.api_timeout || 7200}" required><span class="field-note">超时后可重试未完成项，继续等待原任务。</span></label>
+<label class="checkbox-label span-two"><input name="clear_api_key" type="checkbox">删除当前地域已保存的密钥</label>
+<p class="field-note span-two">ASR Flash 与 Paraformer 共用所选地域的百炼密钥。密钥保存在本地数据库，不会显示在任务或导出文件中。云端按用量计费，每个音频文件最多 12 小时 / 2 GB。<a href="https://help.aliyun.com/zh/model-studio/get-api-key" target="_blank" rel="noreferrer">获取 API Key ↗</a></p>
+</div>
+<div class="settings-fields span-two" id="whisper-settings">
+<label>Whisper 模型<select name="model">${options(["tiny", "base", "small", "medium", "large-v3", "turbo"], s.parser.model)}</select></label>
+<label>计算设备<select name="device">${options(["cpu", "auto", "cuda"], s.parser.device)}</select></label>
+<label>计算精度<select name="compute_type">${options(["int8", "default", "auto", "float16", "float32"], s.parser.compute_type)}</select></label>
+<label>束搜索宽度<input name="beam_size" type="number" min="1" max="10" value="${s.parser.beam_size}" required></label>
+<label class="checkbox-label"><input name="vad_filter" type="checkbox" ${s.parser.vad_filter ? "checked" : ""}>跳过静音片段（VAD）</label>
+<p class="field-note span-two">首次使用会下载模型。随附 Docker 镜像支持 CPU + int8，CUDA 需要另行配置 NVIDIA 环境。</p>
+</div></div></section><section class="settings-card"><div><h3>03 &nbsp; 输出</h3><p>直接导出已有转录数据，无需重复进行语音识别。</p></div><div><label>文件格式</label><div class="format-options">${["txt", "vtt", "srt", "json"].map((f) => `<label class="checkbox-label"><input type="checkbox" name="formats" value="${f}" ${s.output.formats.includes(f) ? "checked" : ""}>${f.toUpperCase()}</label>`).join("")}</div><label class="checkbox-label" style="margin-top:25px"><input name="timestamps" type="checkbox" ${s.output.timestamps ? "checked" : ""}>在纯文本中添加时间戳</label><p class="field-note">每次导出都会创建独立的版本文件夹。当前文件可在资源详情中查看，历史文件仍保留在磁盘上。</p></div></section><p class="form-error" id="settings-error" role="alert"></p>`;
+  updateParserFields();
 }
+function updateParserFields() {
+  const form = $("#settings-form");
+  const provider = form.elements.provider.value;
+  $("#whisper-settings").hidden = provider !== "whisper";
+  $("#cloud-settings").hidden = provider === "whisper";
+  $("#asr-model-field").hidden = provider !== "asr_flash";
+  const region = form.elements.region;
+  region.querySelector('[value="singapore"]').disabled = provider === "paraformer";
+  if (provider === "paraformer") region.value = "beijing";
+  const configured = (state.settings.parser.configured_regions || []).includes(region.value);
+  $("#api-key-status").textContent = configured
+    ? "此地域已有可用密钥（已保存或来自环境变量），留空即可保留。"
+    : "此地域尚未配置密钥，请输入后保存。";
+}
+$("#settings-form").addEventListener("change", (event) => {
+  if (["provider", "region"].includes(event.target.name)) {
+    // Keys are region-specific; never accidentally save a draft under another region.
+    $("#settings-form").elements.api_key.value = "";
+    $("#settings-form").elements.clear_api_key.checked = false;
+    updateParserFields();
+  }
+});
 document.addEventListener("click", async (event) => {
   const target = event.target.closest("button");
   if (!target) return;
@@ -553,6 +599,12 @@ $("#settings-form").addEventListener("submit", async (e) => {
         retries: Number(data.get("retries")),
       },
       parser: {
+        provider: data.get("provider"),
+        asr_model: data.get("asr_model"),
+        region: data.get("region"),
+        api_key: data.get("api_key") || null,
+        clear_api_key: data.has("clear_api_key"),
+        api_timeout: Number(data.get("api_timeout")),
         model: data.get("model"),
         device: data.get("device"),
         compute_type: data.get("compute_type"),
@@ -569,6 +621,7 @@ $("#settings-form").addEventListener("submit", async (e) => {
       method: "PUT",
       body: JSON.stringify(settings),
     });
+    renderSettings();
     $("#settings-error").textContent = "";
     toast("配置已保存，将用于新任务");
   } catch (error) {

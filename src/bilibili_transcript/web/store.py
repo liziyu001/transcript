@@ -1,6 +1,7 @@
 """SQLite is the source of truth; each operation uses its own connection."""
 
 import json
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -33,6 +34,8 @@ class Store:
                     resource_id INTEGER REFERENCES resources(id),
                     PRIMARY KEY(collection_id, resource_id));
                 CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, value TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS credentials (
+                    region TEXT PRIMARY KEY, api_key TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS jobs (
                     id INTEGER PRIMARY KEY, kind TEXT NOT NULL, state TEXT NOT NULL,
                     config TEXT NOT NULL, dry_run INTEGER NOT NULL, force INTEGER NOT NULL,
@@ -76,7 +79,36 @@ class Store:
             return db.execute(sql, args).lastrowid
 
     def settings(self):
-        return json.loads(self.one("SELECT value FROM settings WHERE id=1")["value"])
+        # Merge new defaults into libraries created before cloud parsers existed.
+        return Settings.model_validate_json(
+            self.one("SELECT value FROM settings WHERE id=1")["value"]
+        ).model_dump()
+
+    def api_key(self, region):
+        row = self.one("SELECT api_key FROM credentials WHERE region=?", (region,))
+        return (row["api_key"] if row else "") or os.environ.get(
+            "DASHSCOPE_API_KEY" if region == "beijing" else "DASHSCOPE_INTL_API_KEY", ""
+        ).strip()
+
+    def public_settings(self):
+        settings = self.settings()
+        settings["parser"]["configured_regions"] = [
+            region for region in ("beijing", "singapore") if self.api_key(region)
+        ]
+        return settings
+
+    def save_settings(self, settings):
+        parser = settings.parser
+        key = parser.api_key.get_secret_value().strip() if parser.api_key else ""
+        with self.connect() as db:
+            if parser.clear_api_key:
+                db.execute("DELETE FROM credentials WHERE region=?", (parser.region,))
+            elif key:
+                db.execute(
+                    "INSERT OR REPLACE INTO credentials(region,api_key) VALUES (?,?)",
+                    (parser.region, key),
+                )
+            db.execute("UPDATE settings SET value=? WHERE id=1", (settings.model_dump_json(),))
 
     def import_urls(self, entries, collection_id=1, collection=None):
         added = 0

@@ -137,21 +137,47 @@ def execute(store, job, item):
                 raise ValueError("Download this resource first, or choose Full pipeline.")
             paths = json.loads(resource["parsed"])
             if job["force"] or not available(paths):
-                from bilibili_transcript.parser import ParserConfig, WhisperParser
+                from .models import ParserSettings
 
-                options = config["parser"]
-                parser = WhisperParser(
-                    ParserConfig(
-                        model_size=options["model"],
-                        device=options["device"],
-                        compute_type=options["compute_type"],
-                        language=None if options["language"] == "auto" else options["language"],
-                        beam_size=options["beam_size"],
-                        vad_filter=options["vad_filter"],
+                options = ParserSettings.model_validate(config["parser"]).model_dump()
+                cloud = options["provider"] != "whisper"
+                if cloud:
+                    from bilibili_transcript.api_parser import DashScopeParser
+
+                    parser = DashScopeParser(
+                        model=(
+                            options["asr_model"]
+                            if options["provider"] == "asr_flash"
+                            else "paraformer-v2"
+                        ),
+                        api_key=store.api_key(options["region"]),
+                        region=options["region"],
+                        language=options["language"],
+                        timeout=options["api_timeout"],
                     )
-                )
+                else:
+                    from bilibili_transcript.parser import ParserConfig, WhisperParser
+
+                    parser = WhisperParser(
+                        ParserConfig(
+                            model_size=options["model"],
+                            device=options["device"],
+                            compute_type=options["compute_type"],
+                            language=None if options["language"] == "auto" else options["language"],
+                            beam_size=options["beam_size"],
+                            vad_filter=options["vad_filter"],
+                        )
+                    )
                 paths = []
-                update(0, "Loading model (first use downloads model weights)…", True)
+                update(
+                    0,
+                    (
+                        "Preparing cloud transcription…"
+                        if cloud
+                        else "Loading model (first use downloads model weights)…"
+                    ),
+                    True,
+                )
                 for part, source in enumerate(audio):
 
                     def segment_progress(end, duration):
@@ -162,7 +188,26 @@ def execute(store, job, item):
                             f"Part {part + 1}/{len(audio)} · {end:.0f}s transcribed",
                         )
 
-                    transcript = parser.transcribe(Path(source["path"]), progress=segment_progress)
+                    extra = {}
+                    if cloud:
+                        if (source.get("duration") or 0) > 12 * 3600:
+                            raise ValueError(
+                                "Cloud transcription supports up to 12 hours per file. Split this recording first."
+                            )
+                        extra = {
+                            "checkpoint": store.root
+                            / "cloud-tasks"
+                            / f"job-{job_id}"
+                            / f"item-{item_id}-part-{part + 1}.json",
+                            "status": lambda message: update(
+                                part / len(audio) * 100,
+                                f"Part {part + 1}/{len(audio)} · {message}",
+                                True,
+                            ),
+                        }
+                    transcript = parser.transcribe(
+                        Path(source["path"]), progress=segment_progress, **extra
+                    )
                     transcript.title, transcript.url = source["title"], resource["url"]
                     path = (
                         store.root

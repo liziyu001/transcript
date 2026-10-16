@@ -60,6 +60,60 @@ unless **Reprocess existing results** is selected. To apply a new parser model t
 an existing transcript, queue Parse with reprocessing enabled. Export always writes
 a new version, so output changes never require rerunning Whisper.
 
+### Cloud transcription in the console
+
+In **配置管理 → 解析器**, select **ASR Flash（阿里云 API）** or
+**Paraformer v2（阿里云 API）**, choose the region, enter your Alibaba Cloud
+Model Studio (DashScope/百炼) API key, and click **保存配置**.
+Both parsers can use the same key within a region. Paraformer requires Beijing;
+ASR Flash also supports Singapore, which requires a key issued in that region.
+Get a key from [Alibaba Cloud's instructions](https://help.aliyun.com/zh/model-studio/get-api-key).
+
+ASR Flash offers `qwen-audio-3.1-asr-flash-filetrans` (default) and
+`qwen3-asr-flash-filetrans`. These are the long-recording APIs with subtitle
+timestamps, rather than the short-audio chat APIs. Paraformer uses `paraformer-v2`.
+Use `zh` for Chinese or `auto` for mixed languages. Whisper device, precision,
+beam size and VAD settings apply only when the local parser is selected.
+
+Select downloaded resources and run **解析音频** or **完整流程**. Uploading,
+cloud task submission, polling, and result download happen automatically; you
+do not need to create a storage bucket. Existing TXT, VTT, SRT and JSON exports
+work with either parser. To replace an existing transcript after changing models,
+run **Parse with Reprocess existing results** enabled. Running Export alone
+does not transcribe or call a cloud model. Download and export remain independent.
+
+Cloud recognition sends the audio to Alibaba and is billed by the provider.
+Each file is limited to 12 hours / 2 GB (the temporary-upload policy can impose
+a smaller size limit). Oversized files must be split before using this version.
+Temporary uploads expire after 48 hours; this upload mode is intended for this
+personal, sequential console rather than a high-concurrency production service.
+See the [upload contract](https://help.aliyun.com/zh/model-studio/get-temporary-file-url)
+and [file transcription contract](https://help.aliyun.com/zh/model-studio/non-realtime-speech-recognition-user-guide).
+
+Keys are stored in the local SQLite database separately from settings and are
+never returned to the browser, job snapshots, or exported transcripts. Storage
+is not encrypted: protect the data directory and its backups. Leave the key
+field blank to retain it; use the delete checkbox to remove a saved key for the
+selected region. Alternatively, set `DASHSCOPE_API_KEY` (Beijing) or
+`DASHSCOPE_INTL_API_KEY` (Singapore) in the server environment. Saved keys take
+precedence; deleting a saved key still allows an environment key to be used.
+Jobs snapshot model/region/settings, but resolve the current key when they run,
+so correcting a key also fixes retries of existing jobs.
+
+Remote task IDs and completed part results are saved under `cloud-tasks/`.
+**Retry incomplete** or resuming after a restart reuses those checkpoints.
+Cancelling the local job stops waiting; it does not cancel Alibaba's task or
+reverse its charges. The default wait limit is two hours and can be adjusted
+in Configuration. Once a task ID has been saved, a network interruption does
+not require another submission. If the submission response itself is lost,
+the task ID cannot be recovered automatically; a retry may create another paid
+task. Provider task/results expire, so resume interrupted jobs promptly.
+
+After updating the application, rebuild Docker with `docker compose up -d --build`,
+or run `uv sync --extra dev` and restart the local server. Refresh the browser
+to load the new configuration panel. The legacy command-line tool continues
+to use its own local Whisper settings; cloud selection is in the web console.
+
 ### Local development
 
 ```bash

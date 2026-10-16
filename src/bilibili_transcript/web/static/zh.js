@@ -17,12 +17,23 @@ const actionNames = {
   retry: "重试",
 };
 const optionNames = {
+  whisper: "Whisper（本地）",
+  asr_flash: "ASR Flash（阿里云 API）",
+  paraformer: "Paraformer v2（阿里云 API）",
+  beijing: "北京（中国大陆）",
+  singapore: "新加坡（国际）",
+  "qwen-audio-3.1-asr-flash-filetrans": "Qwen Audio 3.1 ASR Flash（推荐）",
+  "qwen3-asr-flash-filetrans": "Qwen3 ASR Flash",
   auto: "自动",
   default: "默认",
   cpu: "CPU（处理器）",
   cuda: "CUDA（显卡）",
 };
 const configLabels = {
+  provider: "解析方式",
+  asr_model: "ASR Flash 版本",
+  region: "API 地域",
+  api_timeout: "云端等待上限（秒）",
   downloader: "下载器",
   timeout: "超时（秒）",
   retries: "重试次数",
@@ -56,6 +67,20 @@ function configZh(value) {
   return value;
 }
 const messagesZh = {
+  "Preparing cloud transcription…": "正在准备云端转录…",
+  "Getting cloud upload permission…": "正在获取云端上传权限…",
+  "Uploading audio to Alibaba Cloud…": "正在上传音频到阿里云…",
+  "Submitting cloud transcription…": "正在提交云端转录任务…",
+  "Resuming saved cloud transcription…": "正在恢复已保存的云端任务…",
+  "Cloud transcription queued…": "云端转录排队中…",
+  "Cloud transcription running…": "云端正在识别音频…",
+  "Downloading cloud transcript…": "正在获取云端转录结果…",
+  "Configure an Alibaba Cloud API key in Configuration → Parser first.": "请先在配置管理 → 解析器中填写阿里云百炼 API Key。",
+  "Paraformer requires the Beijing region and a Beijing API key.": "Paraformer 需要选择北京地域并使用北京地域的 API Key。",
+  "Cloud access denied. Check the API key, selected region and model access.": "云端拒绝访问。请检查 API Key、所选地域和模型使用权限。",
+  "Cloud wait timed out. Retry incomplete to continue the saved task.": "等待云端结果超时。点击“重试未完成项”可继续等待已保存的任务。",
+  "Cloud request failed or timed out. Check your network and retry the job.": "云端请求失败或超时。请检查网络后重试任务。",
+  "Cloud transcription supports up to 12 hours per file. Split this recording first.": "云端支持单文件最多 12 小时，请先拆分此录音。",
   Complete: "已完成",
   Paused: "已暂停",
   Cancelled: "已取消",
@@ -113,6 +138,10 @@ function messageZh(value) {
       key.toLowerCase()
     ] || key;
   const patterns = [
+    [/^Part (\d+)\/(\d+) · (.+)$/, (_, part, total, message) =>
+      /^\d+s transcribed$/.test(message)
+        ? `第 ${part}/${total} 个分段 · 已转录 ${message.split("s")[0]} 秒`
+        : `第 ${part}/${total} 个分段 · ${messageZh(message)}`],
     [/^Starting (\w+)…$/, (_, s) => `正在开始${stage(s)}…`],
     [/^(Download|Parse|Export) complete$/, (_, s) => `${stage(s)}完成`],
     [/^Resolved (\d+) videos$/, (_, n) => `已解析 ${n} 个视频`],
