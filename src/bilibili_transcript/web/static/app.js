@@ -86,15 +86,15 @@ function durationText(seconds) {
 }
 function metadataSummary(resource) {
   const metadata = resource.metadata || {};
-  return `${metadata.part_count ? `${metadata.part_count} 个分P` : "分P待获取"} · ${durationText(metadata.duration)}`;
+  return `总时长 ${durationText(metadata.duration)}${metadata.part_count ? ` · ${metadata.part_count} 个分P` : ""}`;
 }
 function renderMetadata(resource) {
   const metadata = resource.metadata || {};
   return `<h3>视频信息 · ${esc(metadataSummary(resource))}</h3>
-    <p class="muted">Bilibili 提供的源视频时长，无需下载音频。${resource.metadata_updated ? `更新于 ${esc(date(resource.metadata_updated))}` : "导入后的信息查询会在任务队列中运行。"}</p>
+    <p class="muted">合集导入直接保存总时长。需要分P信息时，可手动刷新视频信息，无需下载音频。${resource.metadata_updated ? `更新于 ${esc(date(resource.metadata_updated))}` : ""}</p>
     ${resource.metadata_error ? `<p class="form-error">最近一次获取失败：${esc(messageZh(resource.metadata_error))}。可刷新重试；已有文件和信息会保留。</p>` : ""}
     ${(metadata.pages || []).map((part) => `<div class="file-row"><a href="${esc(resource.url)}?p=${part.page}" target="_blank" rel="noreferrer">P${part.page} · ${esc(part.title)}</a><span>${esc(durationText(part.duration))}</span></div>`).join("")}
-    <button data-metadata="${resource.id}">↻ 刷新视频信息</button>`;
+    <button data-metadata="${resource.id}">↻ 刷新视频信息（含分P）</button>`;
 }
 function date(value) {
   return new Date(value).toLocaleString("zh-CN", {

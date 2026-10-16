@@ -9,13 +9,17 @@ from urllib3.util.retry import Retry
 
 
 def get_video_urls_from_collection(collection_url: str) -> list[str]:
-    return [entry['url'] for entry in get_collection_entries(collection_url)]
+    return [entry["url"] for entry in get_collection_entries(collection_url)]
 
 
 def get_collection_entries(collection_url: str, timeout=30, retries=3, progress=None) -> list[dict]:
     parsed = urlparse(collection_url)
     match = re.fullmatch(r"/(\d+)/lists/(\d+)/?", parsed.path)
-    if parsed.scheme not in ("http", "https") or parsed.hostname != "space.bilibili.com" or not match:
+    if (
+        parsed.scheme not in ("http", "https")
+        or parsed.hostname != "space.bilibili.com"
+        or not match
+    ):
         raise ValueError(f"Invalid Bilibili collection URL: {collection_url}")
 
     mid, series_id = match.groups()
@@ -34,13 +38,24 @@ def get_collection_entries(collection_url: str, timeout=30, retries=3, progress=
     page = 1
     try:
         while True:
-            params = ({"mid": mid, "season_id": series_id, "page_num": page, "page_size": 30}
-                      if kind == "season" else
-                      {"mid": mid, "series_id": series_id, "pn": page, "ps": 30,
-                       "sort": "desc", "only_normal": "true"})
+            params = (
+                {"mid": mid, "season_id": series_id, "page_num": page, "page_size": 30}
+                if kind == "season"
+                else {
+                    "mid": mid,
+                    "series_id": series_id,
+                    "pn": page,
+                    "ps": 30,
+                    "sort": "desc",
+                    "only_normal": "true",
+                }
+            )
             response = session.get(
-                "https://api.bilibili.com/x/polymer/web-space/seasons_archives_list" if kind == "season"
-                else "https://api.bilibili.com/x/series/archives",
+                (
+                    "https://api.bilibili.com/x/polymer/web-space/seasons_archives_list"
+                    if kind == "season"
+                    else "https://api.bilibili.com/x/series/archives"
+                ),
                 params=params,
                 headers=headers,
                 timeout=timeout,
@@ -48,7 +63,9 @@ def get_collection_entries(collection_url: str, timeout=30, retries=3, progress=
             response.raise_for_status()
             payload = response.json()
             if payload.get("code") != 0:
-                raise RuntimeError(f"Bilibili API error {payload.get('code')}: {payload.get('message')}")
+                raise RuntimeError(
+                    f"Bilibili API error {payload.get('code')}: {payload.get('message')}"
+                )
             data = payload.get("data") or {}
             archives = data.get("archives") or []
             if not archives:
@@ -58,8 +75,20 @@ def get_collection_entries(collection_url: str, timeout=30, retries=3, progress=
                 bvid = archive.get("bvid")
                 if bvid and bvid not in seen:
                     seen.add(bvid)
-                    entries.append({"url": f"https://www.bilibili.com/video/{bvid}",
-                                    "title": archive.get("title") or bvid})
+                    duration = archive.get("duration")
+                    entries.append(
+                        {
+                            "url": f"https://www.bilibili.com/video/{bvid}",
+                            "title": archive.get("title") or bvid,
+                            "metadata": {
+                                "bvid": bvid,
+                                "title": archive.get("title") or bvid,
+                                "duration": (
+                                    duration if type(duration) is int and duration >= 0 else None
+                                ),
+                            },
+                        }
+                    )
             total = (data.get("page") or {}).get("total")
             if progress:
                 progress(len(entries), total)

@@ -67,7 +67,7 @@ def execute(store, job, item):
                 "steps": [
                     "Fetch collection pages (network required on actual run)",
                     "Deduplicate video URLs and add collection membership",
-                    "Queue video metadata lookups without downloading media",
+                    "Save total durations from collection pages without per-video lookups",
                 ],
                 "network_used": False,
             }
@@ -85,7 +85,7 @@ def execute(store, job, item):
                 True,
             ),
         )
-        return store.import_urls(entries, collection=config["collection"], resolve_metadata=True)
+        return store.import_urls(entries, collection=config["collection"])
 
     resource = store.one("SELECT * FROM resources WHERE id=?", (item["resource_id"],))
     if resource is None:

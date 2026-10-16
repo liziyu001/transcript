@@ -145,6 +145,18 @@ class Store:
                 resource_ids.append(row[0])
                 if entry.get("title"):
                     db.execute("UPDATE resources SET title=? WHERE id=?", (title, row[0]))
+                if entry.get("metadata"):
+                    previous = db.execute(
+                        "SELECT metadata FROM resources WHERE id=?", (row[0],)
+                    ).fetchone()
+                    metadata = json.loads(previous["metadata"])
+                    # Collection summaries do not erase previously fetched part details
+                    # or a known duration when the collection omits it.
+                    metadata.update({k: v for k, v in entry["metadata"].items() if v is not None})
+                    db.execute(
+                        "UPDATE resources SET metadata=?,metadata_updated=? WHERE id=?",
+                        (json.dumps(metadata, ensure_ascii=False), now(), row[0]),
+                    )
                 added += db.execute(
                     "INSERT OR IGNORE INTO membership VALUES (?,?)", (collection_id, row[0])
                 ).rowcount

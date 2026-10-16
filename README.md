@@ -62,23 +62,28 @@ a new version, so output changes never require rerunning Whisper.
 
 ### Video metadata before download
 
-New link and collection imports automatically queue a **视频信息** job that
-reads Bilibili's JSON metadata API (`/x/web-interface/view`). It records the
-video title, total duration in seconds, part count, and each part's number,
-title, CID and duration. No audio or video is downloaded by this job.
+Collection imports save titles and total durations directly from the paginated
+listing (`/x/series/archives` for series, the seasons listing for seasons).
+They make approximately one request per 30 entries, excluding retries, and
+never queue individual video lookups, even when a duration is missing.
+Reimporting a collection updates its summaries while preserving existing part
+details and known durations when the listing omits them.
 
-Each library entry displays its part count and total length; open the resource
-to see per-part durations and links. For example, `BV1QcLTzfEj8` reports
+Each library entry displays total length, plus part count when available.
+Part details are optional: select entries and click **视频信息**, or open a
+resource and click **刷新视频信息（含分P）**. This uses one
+`/x/web-interface/view` lookup per video to fetch part counts, titles, CIDs,
+and durations. New individual link imports also queue this lookup automatically.
+Open the resource to see fetched per-part durations and links.
+For example, `BV1QcLTzfEj8` reports
 **2 parts · 4:14:03**: P1 **2:00:30**, P2 **2:13:33**. Total duration is summed
 across all parts, not taken from the first part. These are Bilibili's reported
 video durations, not measurements of downloaded or trimmed audio.
 
-For existing resources, select entries and click **视频信息**, or open a resource
-and click **刷新视频信息**. This refreshes metadata without downloading or
-changing transcripts/exports. Older libraries are migrated automatically;
+Metadata refresh does not download media or change transcripts/exports.
+Older libraries are migrated automatically;
 unknown duration is displayed as unknown, never zero. Failed lookups remain
-retryable in the job queue and preserve the last successful metadata. Reimport
-queues missing metadata but avoids duplicating an already queued lookup.
+retryable in the job queue and preserve the last successful metadata.
 
 The standalone scraper exposes `get_video_metadata(url)` and
 `AudioScraper.resolve_metadata(url)` for the same metadata-only operation.

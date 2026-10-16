@@ -110,11 +110,9 @@ def test_link_import_queues_metadata_and_library_exposes_it(tmp_path):
         assert not (tmp_path / "audio").exists()
 
 
-def test_collection_import_queues_missing_metadata_and_failed_lookup_can_be_requeued(tmp_path):
+def test_link_import_failed_lookup_can_be_requeued(tmp_path):
     store = Store(tmp_path)
-    result = store.import_urls(
-        [{"url": URL}], collection={"name": "Replay", "url": "collection"}, resolve_metadata=True
-    )
+    result = store.import_urls([{"url": URL}], resolve_metadata=True)
     job_id = result["metadata_job_id"]
     assert store.job(job_id)["items"][0]["resource_id"] == 1
     store.execute("UPDATE jobs SET state='failed' WHERE id=?", (job_id,))
@@ -126,3 +124,89 @@ def test_collection_import_queues_missing_metadata_and_failed_lookup_can_be_requ
     assert store.one("SELECT metadata_error FROM resources WHERE id=1")["metadata_error"] == ""
     result = store.import_urls([{"url": URL}], resolve_metadata=True)
     assert result["metadata_job_id"] is None
+
+
+def test_collection_resolve_saves_durations_without_detail_jobs(tmp_path, monkeypatch):
+    from bilibili_audio_scraper import collection
+
+    calls = []
+
+    class Response:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            page = calls[-1][1]["pn"]
+            archives = [
+                {"bvid": f"BV{i}", "title": f"Replay {i}", "duration": 12428}
+                for i in (range(30) if page == 1 else range(30, 31))
+            ]
+            if page == 2:
+                archives[0].pop("duration")
+            return {"code": 0, "data": {"archives": archives, "page": {"total": 31}}}
+
+    class Session:
+        def mount(self, *args):
+            pass
+
+        def get(self, url, params, **kwargs):
+            calls.append((url, params))
+            return Response()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(collection.requests, "Session", Session)
+    app = create_app(tmp_path, start_worker=False)
+    store = app.state.store
+    config = store.settings()
+    config["collection"] = {
+        "name": "Replay",
+        "url": "https://space.bilibili.com/45502/lists/31284?type=series",
+    }
+    job = store.job(store.create_job("discover", [None], config))
+    execute(store, job, job["items"][0])
+    assert [params["pn"] for _, params in calls] == [1, 2]
+    assert all(url.endswith("/x/series/archives") for url, _ in calls)
+    assert store.rows("SELECT id FROM jobs WHERE kind='metadata'") == []
+    with TestClient(app) as client:
+        resources = client.get("/api/library").json()["resources"]
+    assert len(resources) == 31
+    known = next(r for r in resources if r["title"] == "Replay 0")
+    assert known["metadata"]["duration"] == 12428
+    assert "part_count" not in known["metadata"]
+    unknown = next(r for r in resources if r["title"] == "Replay 30")
+    assert unknown["metadata"].get("duration") is None
+    assert not (tmp_path / "audio").exists()
+
+
+def test_collection_summary_preserves_details_and_artifacts(tmp_path):
+    store = Store(tmp_path)
+    store.import_urls([{"url": URL}])
+    store.save_metadata(1, parse_video_metadata(example()))
+    store.execute(
+        "UPDATE resources SET audio='[\"audio.m4a\"]', parsed='[\"parsed.json\"]', outputs='[\"out.srt\"]' WHERE id=1"
+    )
+    before = store.one("SELECT * FROM resources WHERE id=1")
+    for duration in (15243, None):
+        store.import_urls(
+            [
+                {
+                    "url": URL,
+                    "title": "Updated title",
+                    "metadata": {
+                        "title": "Updated title",
+                        "duration": duration,
+                    },
+                }
+            ]
+        )
+    after = store.one("SELECT * FROM resources WHERE id=1")
+    metadata = json.loads(after["metadata"])
+    assert metadata["duration"] == 15243
+    assert metadata["part_count"] == 2
+    assert metadata["pages"] == json.loads(before["metadata"])["pages"]
+    assert after["title"] == metadata["title"] == "Updated title"
+    for field in ("audio", "parsed", "outputs"):
+        assert after[field] == before[field]
+    assert store.rows("SELECT id FROM jobs") == []
