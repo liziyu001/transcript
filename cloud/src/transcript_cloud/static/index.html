@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Transcript Cloud</title><link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header><div><span class="eyebrow">PERSONAL AUDIO LIBRARY</span><h1>Transcript Cloud</h1>
+    <p>Scrape locally. Process in the cloud. Return when it’s ready.</p></div><span id="connection">Disconnected</span></header>
+  <main>
+    <section class="connection"><form id="connect">
+      <label>Cloud API URL<input id="endpoint" type="url" placeholder="https://your-function-endpoint" required></label>
+      <label>Personal access token<input id="token" type="password" autocomplete="off" minlength="24" required></label>
+      <button>Connect</button><button type="button" id="disconnect" class="secondary">Disconnect</button>
+    </form><p class="hint">The token stays in memory for this page only. Your model key stays on the server.</p></section>
+    <p id="message" role="status" aria-live="polite">Connect to browse uploaded audio and jobs.</p>
+    <section><div class="section-heading"><div><h2>Audio library</h2><p>Upload recordings with the local ingestion command, then select what to transcribe.</p></div>
+      <button id="refresh" class="secondary" disabled>Refresh</button></div>
+      <div class="toolbar"><label>Model<select id="model"><option>qwen-audio-3.1-asr-flash-filetrans</option><option>qwen3-asr-flash-filetrans</option><option>paraformer-v2</option></select></label>
+      <label>Language<select id="language"><option value="auto">Detect automatically</option><option value="zh">Chinese</option><option value="en">English</option></select></label>
+      <button id="start" disabled>Transcribe selected</button></div>
+      <div class="table-wrap"><table><thead><tr><th><input id="all" type="checkbox" aria-label="Select all audio"></th><th>Recording</th><th>Duration</th><th>Size</th></tr></thead><tbody id="audio"></tbody></table></div>
+      <p id="audio-empty" class="hint">No recordings loaded.</p>
+    </section>
+    <section><div class="section-heading"><div><h2>Processing jobs</h2><p>Jobs continue while this page and your computer are closed.</p></div></div>
+      <div id="jobs"></div><p id="jobs-empty" class="hint">No jobs loaded.</p>
+    </section>
+  </main>
+  <script src="/static/app.js" defer></script>
+</body></html>

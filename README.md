@@ -1,5 +1,12 @@
 # Transcript Studio
 
+The `codex/aliyun-cloud` branch adds an independent API-only cloud application in
+[`cloud/`](cloud/README.md): local scraping/resumable upload, a personal control
+panel, Alibaba Cloud workers/storage, and Python ROS CDK/deployment scripts.
+The working local application remains on `master`. See the cloud README for its
+separate `uv` environment and deployment sequence; the Docker instructions below
+describe the original local application.
+
 A local resource library and job-control website for Bilibili audio and transcripts.
 The existing command-line tools remain available below.
 

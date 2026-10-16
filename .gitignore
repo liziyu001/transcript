@@ -47,3 +47,10 @@ audio_cache/
 .env
 .env.*
 !.env.example
+cloud/.artifacts/
+cloud/cdk.out/
+cloud/ros.out/
+cloud/deploy.local.json
+cloud/parameters.local.json
+.pytest_cache/
+.ruff_cache/

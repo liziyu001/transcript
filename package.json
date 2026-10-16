@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "description": "Buildless browser UI served by the Python application",
   "scripts": {
-    "check": "node --check src/bilibili_transcript/web/static/zh.js && node --check src/bilibili_transcript/web/static/app.js"
+    "check": "node --check src/bilibili_transcript/web/static/zh.js && node --check src/bilibili_transcript/web/static/app.js && npm run cloud:check",
+    "cloud:check": "node --check cloud/src/transcript_cloud/static/app.js && node --check cloud/scripts/panel.mjs",
+    "cloud:panel": "node cloud/scripts/panel.mjs"
   }
 }
