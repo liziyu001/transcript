@@ -14,6 +14,7 @@ const state = {
   collection: null,
   filter: "all",
   search: "",
+  sort: "added-desc",
   selected: new Set(),
   resources: [],
   collections: [],
@@ -144,6 +145,25 @@ function show(view) {
   if (view === "settings") renderSettings();
   if (view === "jobs") renderJobs();
 }
+function compareResources(a, b) {
+  const fallback = b.id - a.id;
+  if (state.sort.startsWith("duration-")) {
+    const left = a.metadata?.duration;
+    const right = b.metadata?.duration;
+    const leftKnown = Number.isFinite(left) && left >= 0;
+    const rightKnown = Number.isFinite(right) && right >= 0;
+    // Unknown lengths stay last in either direction; zero is a known duration.
+    if (leftKnown !== rightKnown) return leftKnown ? -1 : 1;
+    if (!leftKnown) return fallback;
+    return (state.sort === "duration-desc" ? right - left : left - right) || fallback;
+  }
+  if (state.sort.startsWith("title-")) {
+    const order = (a.title || "").localeCompare(b.title || "", "zh-CN", { numeric: true });
+    return (state.sort === "title-desc" ? -order : order) || fallback;
+  }
+  const order = (Date.parse(a.created) || 0) - (Date.parse(b.created) || 0);
+  return state.sort === "added-asc" ? order || -fallback : -order || fallback;
+}
 function filtered() {
   return state.resources.filter(
     (r) =>
@@ -153,7 +173,7 @@ function filtered() {
           ? r.audio.length && !r.parsed.length
           : r.parsed.length)) &&
       `${r.title} ${r.url}`.toLowerCase().includes(state.search.toLowerCase()),
-  );
+  ).sort(compareResources);
 }
 function paginated(rows) {
   const start = (state.currentPage - 1) * state.pageSize;
@@ -533,6 +553,11 @@ document.addEventListener("click", async (event) => {
 });
 $("#search").addEventListener("input", (e) => {
   state.search = e.target.value;
+  state.currentPage = 1;
+  renderLibrary();
+});
+$("#resource-sort").addEventListener("change", (e) => {
+  state.sort = e.target.value;
   state.currentPage = 1;
   renderLibrary();
 });

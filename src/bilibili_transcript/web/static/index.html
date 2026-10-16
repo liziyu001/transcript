@@ -73,6 +73,16 @@
               ><button class="tab" data-filter="ready">音频已就绪</button
               ><button class="tab" data-filter="parsed">已转录</button>
             </div>
+            <label class="resource-sort">排序
+              <select id="resource-sort" aria-label="资源排序">
+                <option value="added-desc">最近添加</option>
+                <option value="added-asc">最早添加</option>
+                <option value="duration-desc">总时长：从长到短</option>
+                <option value="duration-asc">总时长：从短到长</option>
+                <option value="title-asc">标题：升序</option>
+                <option value="title-desc">标题：降序</option>
+              </select>
+            </label>
             <label class="search"
               ><span>⌕</span
               ><input
