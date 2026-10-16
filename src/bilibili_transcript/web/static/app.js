@@ -440,6 +440,7 @@ function renderSettings() {
       .join("");
   $("#settings-form").innerHTML =
     `<section class="settings-card"><div><h3>01 &nbsp; 下载器</h3><p>设置合集解析和音频下载的网络参数。</p></div><div class="settings-fields"><label>请求超时（秒）<input name="timeout" type="number" min="5" max="600" value="${s.downloader.timeout}" required></label><label>重试次数<input name="retries" type="number" min="0" max="20" value="${s.downloader.retries}" required></label><p class="field-note span-two">音频会持久保存。默认复用已有音频，创建任务时启用重新处理即可重新下载。</p></div></section><section class="settings-card"><div><h3>02 &nbsp; 解析器</h3><p>选择本地 Whisper 或阿里云语音识别。云端模式会自动上传已下载的音频，无需配置存储桶。</p></div><div class="settings-fields">
+<label class="span-two">云端解析与导出并发数<input name="processing_concurrency" type="number" min="1" max="16" value="${s.processing_concurrency || 4}" required><span class="field-note">默认同时处理 4 个资源。下载与元信息查询共用单独的串行队列；本地 Whisper 同时运行 1 个。保存后对后续启动的任务项生效。</span></label>
 <label>解析方式<select name="provider">${options(["whisper", "asr_flash", "paraformer"], s.parser.provider || "whisper")}</select></label>
 <label>识别语言<input name="language" value="${esc(s.parser.language)}" required maxlength="10"><span class="field-note">zh 中文、en 英文；混合语言建议 auto</span></label>
 <div class="settings-fields span-two" id="cloud-settings">
@@ -656,6 +657,7 @@ $("#settings-form").addEventListener("submit", async (e) => {
   button.disabled = true;
   try {
     const settings = {
+      processing_concurrency: Number(data.get("processing_concurrency")),
       downloader: {
         timeout: Number(data.get("timeout")),
         retries: Number(data.get("retries")),

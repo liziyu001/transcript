@@ -90,6 +90,7 @@ class OutputSettings(BaseModel):
 
 
 class Settings(BaseModel):
+    processing_concurrency: int = Field(4, ge=1, le=16)
     downloader: DownloaderSettings = Field(default_factory=DownloaderSettings)
     parser: ParserSettings = Field(default_factory=ParserSettings)
     output: OutputSettings = Field(default_factory=OutputSettings)

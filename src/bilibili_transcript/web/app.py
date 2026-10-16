@@ -162,7 +162,7 @@ def create_app(data_dir=None, start_worker=True):
             elif action == "retry" and state in ("failed", "cancelled"):
                 # Retry only incomplete items, preserving the original settings snapshot.
                 db.execute(
-                    "UPDATE items SET state='pending',progress=0,message='',result='{}' WHERE job_id=? AND state IN ('failed','cancelled')",
+                    "UPDATE items SET state='pending',progress=0,message='' WHERE job_id=? AND state IN ('failed','cancelled')",
                     (job_id,),
                 )
                 new_state = "queued"

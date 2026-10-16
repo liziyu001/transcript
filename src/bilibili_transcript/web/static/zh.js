@@ -69,6 +69,7 @@ function configZh(value) {
 const messagesZh = {
   "Fetching video parts and durations…": "正在获取视频分P和时长…",
   "Video metadata updated": "视频信息已更新",
+  "Waiting for next stage": "等待下一阶段",
   "Metadata lookup queued; no media will be downloaded.": "视频信息查询已加入队列，不会下载音频。",
   "Fetch title, parts and durations without downloading media": "获取标题、分P和时长，不下载音频",
   "Save total durations from collection pages without per-video lookups": "直接保存合集页面提供的总时长，不逐个查询视频",

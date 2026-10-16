@@ -48,14 +48,24 @@ no login system; keep that binding for personal use.
    changes. Discovery dry runs validate the URL and show the discovery plan; they
    do not enumerate remote videos. Dry-run jobs themselves are saved in history.
 5. Open **Job queue** for per-resource progress, errors, activity, settings snapshots,
-   and worker logs. **Pause** finishes the current resource before pausing.
-   **Cancel** terminates the active child process. **Resume** continues paused work;
+   and worker logs. **Pause** finishes active stages before pausing and starts no new stages.
+   **Cancel** terminates all active child processes for that job. **Resume** continues paused work;
    **Retry incomplete** retries failed/cancelled items and preserves completed ones.
 6. Click a resource title to listen to audio, preview transcript files, and download
    TXT, VTT, SRT, or JSON output. Use **Configuration** to change downloader,
    parser, and export defaults for future jobs.
 
-Settings are captured when jobs are queued. Existing audio/transcripts are reused
+Downloads, collection discovery, and video metadata share one serial scraping lane.
+Cloud parsing and exports run independently, with a configurable concurrency of
+1–16 resources (default 4) under Configuration. Local Whisper uses a separate
+single slot. Concurrency changes apply to subsequent stage starts; already running
+stages finish normally. Multiple parts of one resource are still parsed sequentially.
+Full pipelines checkpoint after each stage, so parsing one recording can overlap
+with downloading the next. Operations on the same resource never run simultaneously.
+Parse/export jobs wait for runnable upstream jobs when their required files are
+missing; without an upstream job they report the usual prerequisite error.
+
+Parser, downloader, and output settings are captured when jobs are queued. Existing audio/transcripts are reused
 unless **Reprocess existing results** is selected. To apply a new parser model to
 an existing transcript, queue Parse with reprocessing enabled. Export always writes
 a new version, so output changes never require rerunning Whisper.
