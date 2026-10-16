@@ -6,6 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .output import atomic_json, export_transcript
+from .store import now
 
 
 def available(paths):
@@ -54,8 +55,17 @@ def execute(store, job, item):
     item_id = item["id"]
     job_id = job["id"]
     last_update = [0.0]
+    last_log = [None, 0.0]
 
     def progress(stage, value, message, force=False):
+        # stdout is captured by the worker's per-item log. Keep status transitions
+        # immediately visible, with a heartbeat instead of identical poll spam.
+        current = time.monotonic()
+        if (
+            message != last_log[0] and (force or current - last_log[1] >= 0.5)
+        ) or current - last_log[1] >= 30:
+            print(f"[{now()}] {stage}: {message}", flush=True)
+            last_log[:] = [message, current]
         if force or time.monotonic() - last_update[0] > 0.5:
             store.progress(item_id, stage, value, message)
             last_update[0] = time.monotonic()
@@ -179,6 +189,13 @@ def execute(store, job, item):
                 options = ParserSettings.model_validate(config["parser"]).model_dump()
                 cloud = options["provider"] != "whisper"
                 if cloud:
+                    update(
+                        0,
+                        f"Cloud parser: {options['provider']} · "
+                        f"{options['asr_model'] if options['provider'] == 'asr_flash' else 'paraformer-v2'} · "
+                        f"{options['region']} · language={options['language']}",
+                        True,
+                    )
                     from bilibili_transcript.api_parser import DashScopeParser
 
                     parser = DashScopeParser(

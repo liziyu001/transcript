@@ -240,6 +240,7 @@ class DashScopeParser:
                 temporary.replace(checkpoint)
 
         if "transcript" in saved:
+            status("Reusing saved cloud transcript…")
             document = saved["transcript"]
             return Transcript(
                 document["title"],
@@ -331,6 +332,7 @@ class DashScopeParser:
         transcript = parse_result(document, path.stem, self.language)
         saved["transcript"] = asdict(transcript)
         save()
+        status(f"Cloud transcription complete: {len(transcript.segments)} segments")
         if progress:
             duration = max((s.end for s in transcript.segments), default=1)
             progress(duration, duration)

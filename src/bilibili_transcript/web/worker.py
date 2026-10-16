@@ -210,7 +210,7 @@ class Worker:
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 start_new_session=os.name != "nt",
-                env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                env={**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"},
             )
         except Exception as exc:
             if log:
@@ -245,6 +245,7 @@ def run_item(root, job_id, item_id, stage=None):
     store = Store(root)
     job = store.job(job_id)
     item = next(item for item in job["items"] if item["id"] == item_id)
+    print(f"[{now()}] Job {job_id}, item {item_id}: starting {stage or job['kind']}", flush=True)
     try:
         pipeline = job["kind"] == "pipeline" and not job["dry_run"] and stage is not None
         execution_job = {**job, "kind": stage} if pipeline else job
@@ -266,10 +267,15 @@ def run_item(root, job_id, item_id, stage=None):
                 item_id,
             ),
         )
+        print(
+            f"[{now()}] {'Complete' if complete else 'Stage complete; waiting for next stage'}",
+            flush=True,
+        )
     except Exception as exc:
         import traceback
 
         traceback.print_exc()
+        print(f"[{now()}] Item failed; see error above.", flush=True)
         store.execute(
             "UPDATE items SET state='failed',message=? WHERE id=?", (str(exc)[:2000], item_id)
         )

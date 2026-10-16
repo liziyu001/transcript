@@ -132,3 +132,56 @@ def test_missing_key_is_actionable_and_settings_never_serialize_it():
     settings = Settings.model_validate({"parser": {"api_key": "test-secret-key"}})
     assert "test-secret-key" not in settings.model_dump_json()
     assert "api_key" not in settings.model_dump()["parser"]
+
+
+@pytest.mark.parametrize("provider", ["asr_flash", "paraformer"])
+def test_console_cloud_progress_is_written_to_view_log(tmp_path, monkeypatch, provider):
+    from contextlib import redirect_stdout
+    from bilibili_transcript.parser import Transcript, TranscriptSegment
+    from bilibili_transcript.web.worker import run_item
+
+    app = create_app(tmp_path, start_worker=False)
+    store = app.state.store
+    store.import_urls([{"url": "https://www.bilibili.com/video/BV123"}])
+    audio = tmp_path / "audio.m4a"
+    audio.write_bytes(b"audio")
+    store.execute(
+        "UPDATE resources SET audio=? WHERE id=1",
+        (json.dumps([{"path": str(audio), "title": "Example", "duration": 10}]),),
+    )
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-secret-key")
+    config = store.settings()
+    config["parser"]["provider"] = provider
+    job_id = store.create_job("parse", [1], config)
+    item_id = store.job(job_id)["items"][0]["id"]
+
+    def transcribe(self, path, progress=None, *, checkpoint=None, status=None):
+        for message in (
+            "Getting cloud upload permission…",
+            "Uploading audio to Alibaba Cloud…",
+            "Submitting cloud transcription…",
+            "Cloud transcription queued…",
+            "Cloud transcription running…",
+            "Cloud transcription running…",
+            "Downloading cloud transcript…",
+        ):
+            status(message)
+        return Transcript("Example", "", "zh", [TranscriptSegment(0, 10, "hello")])
+
+    monkeypatch.setattr(DashScopeParser, "transcribe", transcribe)
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    with (logs / f"item-{item_id}.log").open("w", encoding="utf-8") as file:
+        with redirect_stdout(file):
+            run_item(tmp_path, job_id, item_id)
+    with TestClient(app) as client:
+        text = client.get(f"/api/items/{item_id}/log").json()["text"]
+    assert "starting parse" in text
+    assert provider in text
+    assert "Uploading audio" in text
+    assert "Submitting cloud transcription" in text
+    assert text.count("Cloud transcription running") == 1
+    assert "Downloading cloud transcript" in text
+    assert "Parse complete" in text
+    assert "test-secret-key" not in text
+    assert store.job(job_id)["items"][0]["state"] == "completed"
