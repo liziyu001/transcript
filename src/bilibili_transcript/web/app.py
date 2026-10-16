@@ -86,14 +86,14 @@ def create_app(data_dir=None, start_worker=True):
         for row in membership:
             groups.setdefault(row["resource_id"], []).append(row["collection_id"])
         for resource in resources:
-            for field in ("audio", "parsed", "outputs"):
+            for field in ("audio", "parsed", "outputs", "metadata"):
                 resource[field] = json.loads(resource[field])
             resource["collections"] = groups.get(resource["id"], [])
         return {"collections": collections, "resources": resources}
 
     @app.post("/api/import/links")
     def import_links(body: ImportLinks):
-        return store.import_urls([{"url": url} for url in body.urls])
+        return store.import_urls([{"url": url} for url in body.urls], resolve_metadata=True)
 
     @app.post("/api/import/collection")
     def import_collection(body: ImportCollection):

@@ -13,6 +13,17 @@ def available(paths):
 
 
 def plan(store, resource, kind, config, force):
+    if kind == "metadata":
+        return {
+            "resource_id": resource["id"],
+            "title": resource["title"],
+            "steps": [
+                {
+                    "stage": "metadata",
+                    "action": "Fetch title, parts and durations without downloading media",
+                }
+            ],
+        }
     audio = json.loads(resource["audio"])
     parsed = json.loads(resource["parsed"])
     stages = ["download", "parse", "export"] if kind == "pipeline" else [kind]
@@ -56,6 +67,7 @@ def execute(store, job, item):
                 "steps": [
                     "Fetch collection pages (network required on actual run)",
                     "Deduplicate video URLs and add collection membership",
+                    "Queue video metadata lookups without downloading media",
                 ],
                 "network_used": False,
             }
@@ -73,12 +85,35 @@ def execute(store, job, item):
                 True,
             ),
         )
-        return store.import_urls(entries, collection=config["collection"])
+        return store.import_urls(entries, collection=config["collection"], resolve_metadata=True)
 
     resource = store.one("SELECT * FROM resources WHERE id=?", (item["resource_id"],))
+    if resource is None:
+        raise ValueError(f"Resource {item['resource_id']} no longer exists.")
     if job["dry_run"]:
         return plan(store, resource, job["kind"], config, job["force"])
     resource_id = resource["id"]
+    if job["kind"] == "metadata":
+        from bilibili_audio_scraper import AudioScraper, ScraperConfig
+
+        progress("metadata", 0, "Fetching video parts and durations…", True)
+        scraper = AudioScraper(
+            ScraperConfig(
+                timeout=config["downloader"]["timeout"],
+                retry_attempts=config["downloader"]["retries"],
+            )
+        )
+        try:
+            metadata = scraper.resolve_metadata(resource["url"])
+            store.save_metadata(resource_id, metadata)
+        except Exception as exc:
+            # Preserve previous good metadata and every download/parse/export artifact.
+            store.execute(
+                "UPDATE resources SET metadata_error=? WHERE id=?", (str(exc)[:2000], resource_id)
+            )
+            raise
+        progress("metadata", 100, "Video metadata updated", True)
+        return {"part_count": metadata["part_count"], "duration": metadata["duration"]}
     stages = ["download", "parse", "export"] if job["kind"] == "pipeline" else [job["kind"]]
     result = {}
     for index, stage in enumerate(stages):
@@ -123,7 +158,9 @@ def execute(store, job, item):
                     for source in scraper.download_audio(resource["url"], progress=hook)
                 ]
                 resource["audio"] = json.dumps(audio)
-                resource["title"] = audio[0]["title"]
+                resource["title"] = (
+                    json.loads(resource.get("metadata") or "{}").get("title") or audio[0]["title"]
+                )
                 # Downstream manifests are invalidated after a successful new download.
                 resource["parsed"], resource["outputs"] = "[]", "[]"
                 store.execute(

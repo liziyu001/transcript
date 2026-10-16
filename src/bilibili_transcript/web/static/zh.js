@@ -67,6 +67,12 @@ function configZh(value) {
   return value;
 }
 const messagesZh = {
+  "Fetching video parts and durations…": "正在获取视频分P和时长…",
+  "Video metadata updated": "视频信息已更新",
+  "Metadata lookup queued; no media will be downloaded.": "视频信息查询已加入队列，不会下载音频。",
+  "Fetch title, parts and durations without downloading media": "获取标题、分P和时长，不下载音频",
+  "Queue video metadata lookups without downloading media": "排队获取各视频的分P和时长，不下载音频",
+  "Could not fetch Bilibili metadata. Retry metadata refresh later.": "无法获取 Bilibili 视频信息，请稍后刷新重试。",
   "Preparing cloud transcription…": "正在准备云端转录…",
   "Getting cloud upload permission…": "正在获取云端上传权限…",
   "Uploading audio to Alibaba Cloud…": "正在上传音频到阿里云…",

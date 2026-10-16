@@ -28,6 +28,7 @@ const state = {
   contextMenuResource: null,
 };
 const stageNames = {
+  metadata: "刷新视频信息",
   download: "下载音频",
   parse: "解析音频",
   export: "导出转录结果",
@@ -75,6 +76,25 @@ function parserSummary(parser) {
   if (!parser.provider || parser.provider === "whisper")
     return `Whisper ${parser.model} · ${parser.device} · ${parser.language}`;
   return `${parser.provider === "paraformer" ? "Paraformer v2" : parser.asr_model} · ${parser.region === "singapore" ? "新加坡" : "北京"} · ${parser.language}`;
+}
+function durationText(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "时长未知";
+  const value = Math.round(seconds);
+  const hours = Math.floor(value / 3600);
+  const minutes = Math.floor((value % 3600) / 60);
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+}
+function metadataSummary(resource) {
+  const metadata = resource.metadata || {};
+  return `${metadata.part_count ? `${metadata.part_count} 个分P` : "分P待获取"} · ${durationText(metadata.duration)}`;
+}
+function renderMetadata(resource) {
+  const metadata = resource.metadata || {};
+  return `<h3>视频信息 · ${esc(metadataSummary(resource))}</h3>
+    <p class="muted">Bilibili 提供的源视频时长，无需下载音频。${resource.metadata_updated ? `更新于 ${esc(date(resource.metadata_updated))}` : "导入后的信息查询会在任务队列中运行。"}</p>
+    ${resource.metadata_error ? `<p class="form-error">最近一次获取失败：${esc(messageZh(resource.metadata_error))}。可刷新重试；已有文件和信息会保留。</p>` : ""}
+    ${(metadata.pages || []).map((part) => `<div class="file-row"><a href="${esc(resource.url)}?p=${part.page}" target="_blank" rel="noreferrer">P${part.page} · ${esc(part.title)}</a><span>${esc(durationText(part.duration))}</span></div>`).join("")}
+    <button data-metadata="${resource.id}">↻ 刷新视频信息</button>`;
 }
 function date(value) {
   return new Date(value).toLocaleString("zh-CN", {
@@ -203,7 +223,7 @@ function renderLibrary() {
   $("#resource-rows").innerHTML = rows
     .map(
       (r) =>
-        `<tr data-resource-row="${r.id}"><td class="check-cell"><input type="checkbox" data-select="${r.id}" aria-label="选择 ${esc(r.title)}" ${state.selected.has(r.id) ? "checked" : ""}></td><td><div class="resource-cell"><span class="media-icon">▷</span><div><button class="resource-name" data-resource="${r.id}">${esc(r.title)}</button><a class="resource-url" href="${esc(r.url)}" target="_blank" rel="noreferrer">${esc(r.url)}</a></div></div></td><td>${esc(
+        `<tr data-resource-row="${r.id}"><td class="check-cell"><input type="checkbox" data-select="${r.id}" aria-label="选择 ${esc(r.title)}" ${state.selected.has(r.id) ? "checked" : ""}></td><td><div class="resource-cell"><span class="media-icon">▷</span><div><button class="resource-name" data-resource="${r.id}">${esc(r.title)}</button><a class="resource-url" href="${esc(r.url)}" target="_blank" rel="noreferrer">${esc(r.url)}</a><div class="resource-duration">${esc(metadataSummary(r))}${r.metadata_error ? " · 信息获取失败，可重试" : ""}</div></div></div></td><td>${esc(
           r.collections
             .map((id) =>
               collectionName(state.collections.find((c) => c.id === id)),
@@ -277,6 +297,13 @@ async function refresh() {
       renderSidebar();
       if (state.view === "library") renderLibrary();
       if (state.view === "jobs") renderJobs();
+      if (state.detail?.kind === "resource" && $("#resource-metadata")) {
+        const resource = state.resources.find((r) => r.id === state.detail.id);
+        if (resource) {
+          $("#resource-metadata").innerHTML = renderMetadata(resource);
+          $("#detail-title").textContent = resource.title;
+        }
+      }
     }
     $("#connection").textContent = "已连接本地服务";
     $("#connection-dot").style.background = "#63a185";
@@ -318,7 +345,11 @@ async function openJob(stage) {
   $("#job-error").textContent = "";
   $("#job-dry").checked = false;
   $("#job-force").checked = false;
-  $("#job-force").disabled = stage === "export";
+  $("#job-force").disabled = ["export", "metadata"].includes(stage);
+  if (stage === "metadata") {
+    $("#job-description").textContent = `已选择 ${state.selected.size} 个资源。仅获取标题、分P信息和总时长，不下载音频。`;
+    $("#job-config-summary").textContent = `请求超时 ${s.downloader.timeout} 秒 · 重试 ${s.downloader.retries} 次。已有音频和转录结果会保留。`;
+  }
   $("#job-dialog").showModal();
 }
 async function renderJobDetail(id) {
@@ -366,7 +397,7 @@ function openResource(id) {
       })
       .join("");
   $("#detail-content").innerHTML =
-    `<p><a href="${esc(r.url)}" target="_blank" rel="noreferrer">打开原始视频 ↗</a></p><div class="detail-section"><h3>音频 · ${r.audio.length} 个分段</h3>${files("audio", r.audio) || "<p>暂无音频，请选择此资源并运行下载。</p>"}</div><div class="detail-section"><h3>转录数据</h3>${files("parsed", r.parsed) || "<p>暂无转录数据，请先下载音频，再运行解析。</p>"}</div><div class="detail-section"><h3>已导出的文件</h3>${files("outputs", r.outputs) || "<p>解析完成后运行导出，即可生成文本或字幕文件。</p>"}</div><pre class="resource-preview" id="file-preview" hidden></pre>`;
+    `<p><a href="${esc(r.url)}" target="_blank" rel="noreferrer">打开原始视频 ↗</a></p><div class="detail-section" id="resource-metadata">${renderMetadata(r)}</div><div class="detail-section"><h3>音频 · ${r.audio.length} 个分段</h3>${files("audio", r.audio) || "<p>暂无音频，请选择此资源并运行下载。</p>"}</div><div class="detail-section"><h3>转录数据</h3>${files("parsed", r.parsed) || "<p>暂无转录数据，请先下载音频，再运行解析。</p>"}</div><div class="detail-section"><h3>已导出的文件</h3>${files("outputs", r.outputs) || "<p>解析完成后运行导出，即可生成文本或字幕文件。</p>"}</div><pre class="resource-preview" id="file-preview" hidden></pre>`;
   if (!$("#detail-dialog").open) $("#detail-dialog").showModal();
 }
 function renderSettings() {
@@ -467,6 +498,12 @@ document.addEventListener("click", async (event) => {
     if (d.stage) await openJob(d.stage);
     if (d.jobDetail) await openJobDetail(Number(d.jobDetail));
     if (d.resource) openResource(Number(d.resource));
+    if (d.metadata) {
+      target.disabled = true;
+      const job = await post("/jobs", { kind: "metadata", resource_ids: [Number(d.metadata)] });
+      await refresh();
+      await openJobDetail(job.id);
+    }
     if (d.control) {
       target.disabled = true;
       await post(`/jobs/${d.job}/${d.control}`);
@@ -536,7 +573,7 @@ $("#import-form").addEventListener("submit", async (e) => {
         .filter((s) => s && !s.startsWith("#"));
       const result = await post("/import/links", { urls });
       toast(
-        `已添加 ${result.added} 个资源至通用合集 · ${result.existing} 个已存在`,
+        `已添加 ${result.added} 个资源至通用合集 · ${result.existing} 个已存在${result.metadata_job_id ? " · 视频信息查询已排队" : ""}`,
       );
       $("#links-input").value = "";
       state.collection = 1;

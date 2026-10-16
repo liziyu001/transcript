@@ -807,6 +807,12 @@ label > textarea {
 .span-two {
   grid-column: 1/-1;
 }
+.resource-duration {
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
 .field-note {
   font-size: 11px;
   line-height: 1.7;

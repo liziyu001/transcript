@@ -37,6 +37,12 @@ class AudioScraper:
     def __init__(self, config: Optional[ScraperConfig] = None):
         self.config = config or ScraperConfig()
 
+    def resolve_metadata(self, url: str) -> dict:
+        """Resolve all parts and durations without creating or downloading files."""
+        from .metadata import get_video_metadata
+
+        return get_video_metadata(url, self.config.timeout, self.config.retry_attempts)
+
     def download_audio(self, url: str, progress=None) -> list[AudioSource]:
         output_dir = Path(self.config.output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)

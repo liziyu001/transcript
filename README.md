@@ -60,6 +60,29 @@ unless **Reprocess existing results** is selected. To apply a new parser model t
 an existing transcript, queue Parse with reprocessing enabled. Export always writes
 a new version, so output changes never require rerunning Whisper.
 
+### Video metadata before download
+
+New link and collection imports automatically queue a **视频信息** job that
+reads Bilibili's JSON metadata API (`/x/web-interface/view`). It records the
+video title, total duration in seconds, part count, and each part's number,
+title, CID and duration. No audio or video is downloaded by this job.
+
+Each library entry displays its part count and total length; open the resource
+to see per-part durations and links. For example, `BV1QcLTzfEj8` reports
+**2 parts · 4:14:03**: P1 **2:00:30**, P2 **2:13:33**. Total duration is summed
+across all parts, not taken from the first part. These are Bilibili's reported
+video durations, not measurements of downloaded or trimmed audio.
+
+For existing resources, select entries and click **视频信息**, or open a resource
+and click **刷新视频信息**. This refreshes metadata without downloading or
+changing transcripts/exports. Older libraries are migrated automatically;
+unknown duration is displayed as unknown, never zero. Failed lookups remain
+retryable in the job queue and preserve the last successful metadata. Reimport
+queues missing metadata but avoids duplicating an already queued lookup.
+
+The standalone scraper exposes `get_video_metadata(url)` and
+`AudioScraper.resolve_metadata(url)` for the same metadata-only operation.
+
 ### Cloud transcription in the console
 
 In **配置管理 → 解析器**, select **ASR Flash（阿里云 API）** or

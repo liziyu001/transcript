@@ -50,6 +50,16 @@ class Store:
                     id INTEGER PRIMARY KEY, job_id INTEGER NOT NULL REFERENCES jobs(id),
                     created TEXT NOT NULL, message TEXT NOT NULL);
             """)
+            # Additive migration preserves existing resources, files and jobs.
+            db.execute("BEGIN IMMEDIATE")
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(resources)")}
+            for name, definition in (
+                ("metadata", "TEXT NOT NULL DEFAULT '{}'"),
+                ("metadata_error", "TEXT NOT NULL DEFAULT ''"),
+                ("metadata_updated", "TEXT"),
+            ):
+                if name not in columns:
+                    db.execute(f"ALTER TABLE resources ADD COLUMN {name} {definition}")
             db.execute("INSERT OR IGNORE INTO collections VALUES (1, 'General', NULL, ?)", (now(),))
             db.execute(
                 "INSERT OR IGNORE INTO settings VALUES (1, ?)", (Settings().model_dump_json(),)
@@ -110,8 +120,11 @@ class Store:
                 )
             db.execute("UPDATE settings SET value=? WHERE id=1", (settings.model_dump_json(),))
 
-    def import_urls(self, entries, collection_id=1, collection=None):
+    def import_urls(self, entries, collection_id=1, collection=None, resolve_metadata=False):
         added = 0
+        resource_ids = []
+        metadata_job = None
+        config = self.settings() if resolve_metadata else None
         with self.connect() as db:
             if collection:
                 db.execute(
@@ -129,12 +142,54 @@ class Store:
                     (url, title, now()),
                 )
                 row = db.execute("SELECT id FROM resources WHERE url=?", (url,)).fetchone()
+                resource_ids.append(row[0])
                 if entry.get("title"):
                     db.execute("UPDATE resources SET title=? WHERE id=?", (title, row[0]))
                 added += db.execute(
                     "INSERT OR IGNORE INTO membership VALUES (?,?)", (collection_id, row[0])
                 ).rowcount
-        return {"added": added, "existing": len(entries) - added, "collection_id": collection_id}
+            if resolve_metadata:
+                metadata_job = self._queue_missing_metadata(db, resource_ids, config)
+        result = {"added": added, "existing": len(entries) - added, "collection_id": collection_id}
+        if resolve_metadata:
+            result["metadata_job_id"] = metadata_job
+        return result
+
+    def _queue_missing_metadata(self, db, resource_ids, config):
+        ids = []
+        for resource_id in dict.fromkeys(resource_ids):
+            row = db.execute("SELECT metadata FROM resources WHERE id=?", (resource_id,)).fetchone()
+            pending = db.execute(
+                "SELECT 1 FROM items i JOIN jobs j ON j.id=i.job_id "
+                "WHERE i.resource_id=? AND j.kind='metadata' "
+                "AND i.state IN ('pending','running') "
+                "AND j.state IN ('queued','running','paused','pausing') LIMIT 1",
+                (resource_id,),
+            ).fetchone()
+            if not json.loads(row["metadata"]) and not pending:
+                ids.append(resource_id)
+        if not ids:
+            return None
+        job_id = db.execute(
+            "INSERT INTO jobs(kind,state,config,dry_run,force,created,updated) VALUES (?,?,?,?,?,?,?)",
+            ("metadata", "queued", json.dumps(config), False, False, now(), now()),
+        ).lastrowid
+        db.executemany(
+            "INSERT INTO items(job_id,resource_id,state) VALUES (?,?,'pending')",
+            [(job_id, resource_id) for resource_id in ids],
+        )
+        db.execute(
+            "INSERT INTO events(job_id,created,message) VALUES (?,?,?)",
+            (job_id, now(), "Metadata lookup queued; no media will be downloaded."),
+        )
+        return job_id
+
+    def save_metadata(self, resource_id, metadata):
+        self.execute(
+            "UPDATE resources SET metadata=?,metadata_error='',metadata_updated=?,"
+            "title=COALESCE(NULLIF(?,''),title) WHERE id=?",
+            (json.dumps(metadata, ensure_ascii=False), now(), metadata.get("title"), resource_id),
+        )
 
     def create_job(self, kind, ids, config, dry_run=False, force=False):
         ids = list(dict.fromkeys(ids))

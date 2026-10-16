@@ -116,7 +116,7 @@ class ImportCollection(BaseModel):
 
 
 class NewJob(BaseModel):
-    kind: Literal["download", "parse", "export", "pipeline"]
+    kind: Literal["download", "parse", "export", "pipeline", "metadata"]
     resource_ids: list[int] = Field(min_length=1, max_length=5000)
     dry_run: bool = False
     force: bool = False
