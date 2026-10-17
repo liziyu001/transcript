@@ -316,7 +316,10 @@ def synth(outdir):
             "FunctionName": {"Fn::GetAtt": ["Api", "FunctionName"]},
             "TriggerName": "http",
             "TriggerType": "http",
-            "TriggerConfig": {"authType": "anonymous", "methods": ["GET", "POST", "OPTIONS"]},
+            "TriggerConfig": {
+                "authType": "anonymous",
+                "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            },
         },
     )
     flow = resource(
@@ -367,7 +370,7 @@ def synth(outdir):
                         "Path": "/*",
                         "FunctionName": function,
                         "Qualifier": "LATEST",
-                        "Methods": ["GET", "POST", "OPTIONS"],
+                        "Methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
                     }
                 ]
             },

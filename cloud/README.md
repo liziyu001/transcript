@@ -406,3 +406,17 @@ The API role can delete only `audio/*` and `results/*`, never deployment package
  rejected before deletion because ordinary deletion would leave historical bytes.
  Versioned buckets must be cleaned in the OSS console. See
  [OSS delete markers](https://www.alibabacloud.com/help/en/oss/user-guide/delete-marker).
+
+### Diagnose local upload failures
+
+Open **任务队列 → task → resource → 查看日志**. Logs distinguish OSS transfer,
+cloud audio registration, and the final resource association. Cloud failures include
+HTTP method/path, status, safe error text, and FC Request ID when available. Use that
+ID in Function Compute's `transcript-api` logs; the full local stage log is in the
+Compose volume at `/data/items/<item-id>/worker.log`.
+
+The FC HTTP trigger and custom-domain route must allow PATCH/DELETE as well as
+GET/POST/OPTIONS. A 403 after the last upload can mean the PATCH association request
+was rejected by the trigger. After fixing it, retry the failed job: cached sources
+and matching OSS objects are reused. Older generic CloudError logs cannot recover
+information that was never recorded. API tokens and signed URLs must stay out of logs.

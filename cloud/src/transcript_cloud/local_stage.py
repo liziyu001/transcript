@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .catalog import ImportBatch, collection_url
 from .ingest import atomic_json, upload
-from .local_client import CloudClient
+from .local_client import CloudClient, CloudError
 from .local_store import LocalStore
 
 
@@ -126,8 +126,10 @@ def execute(store, job, item, cloud, download=None, uploader=None):
                     source["title"],
                     source["url"],
                 )
+                print(f"正在注册云端音频：第 {index + 1} / {len(sources)} 个分P", flush=True)
                 audio = cloud.request("POST", "/audio", manifest["audio"])
                 audio_ids.append(audio["id"])
+            print("上传完成，正在关联云端资源记录…", flush=True)
             cloud.request("PATCH", f"/studio/resources/{rid}", {"audio_ids": audio_ids})
             save(audio_ids=audio_ids, uploaded=True)
     if kind == "download":
@@ -206,7 +208,7 @@ def main():
         print(
             f"处理失败（{type(exc).__name__}）；可重试恢复已上传的文件和已提交的任务。", flush=True
         )
-        if isinstance(exc, ValueError):
+        if isinstance(exc, (ValueError, CloudError)):
             print(str(exc), flush=True)
         return 1
     return 0
