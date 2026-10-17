@@ -276,6 +276,7 @@ function renderSelection() {
     ? `已选择 ${n} 个资源`
     : "选择资源后即可创建任务";
   $("#cleanup-selected").disabled = !n;
+  $("#bundle-selected").disabled = !n;
   $$("[data-stage]").forEach((x) => (x.disabled = !n));
   const rows = filtered();
   const count = rows.filter((r) => state.selected.has(r.id)).length;
@@ -436,6 +437,7 @@ document.addEventListener("click", async (event) => {
   if (!target) return;
   const d = target.dataset;
   try {
+    if (d.bundle) openBundle();
     if (d.cleanup) openCleanup(d.cleanup === "selected" ? [...state.selected] : [d.cleanup]);
     if (d.refreshResource) openResource(d.refreshResource);
     if (d.editResource) {
@@ -769,4 +771,41 @@ $("#cleanup-form").onsubmit = async event => {
     await refresh();
     if (state.detail?.kind === "resource") openResource(state.detail.id);
   }
+};
+
+let bundleSelection = [], bundleCollection = null, bundleBusy = false;
+function openBundle() {
+  if (bundleBusy) { $("#bundle-dialog").showModal(); return; }
+  bundleSelection = [...state.selected];
+  bundleCollection = state.collection;
+  $("#bundle-summary").textContent = `已选择 ${bundleSelection.length} 个资源。${bundleCollection ? "按当前合集组织目录。" : "按所属合集组织目录；属于多个合集的视频会在各目录中保存一份。"}`;
+  $("#bundle-error").textContent = "";
+  $("#bundle-dialog").showModal();
+}
+$("#bundle-form").onsubmit = async event => {
+  event.preventDefault();
+  const formats = $$("[name=bundle-format]:checked").map(x => x.value);
+  if (!formats.length) { $("#bundle-error").textContent = "请至少选择一种格式。"; return; }
+  if (bundleBusy) return;
+  bundleBusy = true;
+  const button = event.submitter;
+  button.disabled = true; button.textContent = "正在从 OSS 下载并打包…";
+  $("#bundle-error").textContent = "";
+  try {
+    const response = await fetch("/api/download-results", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({resource_ids: bundleSelection, formats, collection_id: bundleCollection})});
+    if (!response.ok) {
+      let message = `下载失败（HTTP ${response.status}）`;
+      try { const data = await response.json(); if (typeof data.detail === "string") message = data.detail; } catch {}
+      throw Error(message);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a"); link.href = url; link.download = `转录结果_${new Date().toISOString().slice(0,10)}.zip`;
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    const missing = Number(response.headers.get("X-Bundle-Missing") || 0);
+    $("#bundle-dialog").close();
+    toast(missing ? `ZIP 已下载；${missing} 项结果缺失，详见下载清单.json` : "ZIP 已下载，按合集、视频和分P保存");
+  } catch (e) { $("#bundle-error").textContent = messageZh(e.message); }
+  finally { bundleBusy = false; button.disabled = false; button.textContent = "打包并下载"; }
 };

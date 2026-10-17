@@ -107,6 +107,7 @@
             </select>
             <span id="selection-label">选择资源后即可创建任务</span>
             <div class="actions">
+              <button id="bundle-selected" data-bundle="selected" disabled>下载结果 ZIP</button>
               <button id="cleanup-selected" data-cleanup="selected" disabled>清理 OSS</button>
               <button data-stage="metadata" disabled>↻ <span>视频信息</span></button>
               <button data-stage="download" disabled>↓ <span>下载并上传</span></button
@@ -316,6 +317,22 @@
         </button>
       </div>
       <div id="detail-content"></div>
+    </dialog>
+    <dialog id="bundle-dialog">
+      <form id="bundle-form">
+        <div class="dialog-heading"><h2>批量下载转录结果</h2><button type="button" data-close="bundle-dialog" class="icon-button" aria-label="关闭">×</button></div>
+        <p id="bundle-summary"></p>
+        <label>文件格式</label><div class="format-options">
+          <label class="checkbox-label"><input type="checkbox" name="bundle-format" value="txt" checked>TXT</label>
+          <label class="checkbox-label"><input type="checkbox" name="bundle-format" value="vtt" checked>VTT</label>
+          <label class="checkbox-label"><input type="checkbox" name="bundle-format" value="srt" checked>SRT</label>
+          <label class="checkbox-label"><input type="checkbox" name="bundle-format" value="json" checked>JSON</label>
+        </div>
+        <p>目录：合集 / 视频标题 [视频ID] / 视频标题_P003_分P标题.vtt</p>
+        <p class="field-note">仅下载已有导出结果，不会重新解析。缺失的结果会列在 ZIP 内的下载清单中。单批上限 512 MB。打包期间请保持页面打开。</p>
+        <p id="bundle-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions"><button type="button" data-close="bundle-dialog">关闭</button><button type="submit" class="primary">打包并下载</button></div>
+      </form>
     </dialog>
     <dialog id="cleanup-dialog">
       <form id="cleanup-form">

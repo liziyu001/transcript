@@ -420,3 +420,20 @@ GET/POST/OPTIONS. A 403 after the last upload can mean the PATCH association req
 was rejected by the trigger. After fixing it, retry the failed job: cached sources
 and matching OSS objects are reused. Older generic CloudError logs cannot recover
 information that was never recorded. API tokens and signed URLs must stay out of logs.
+
+### Batch result downloads
+
+Select resources and click **下载结果 ZIP**, then choose TXT/VTT/SRT/JSON. In a
+collection view, only that collection's directory is used. In the full library,
+a video belonging to multiple named collections appears under each collection.
+Paths preserve collection title, video title/ID, actual source part number and
+part title; stable IDs and collision suffixes prevent overwrites. Unsafe filename
+characters are replaced and long names shortened for portable extraction.
+`下载清单.json` retains full titles, source URLs, part numbers and missing formats.
+
+This downloads existing OSS exports, including after audio cleanup; it does not
+run recognition or generate new exports. Missing formats are reported in the ZIP
+and panel. If nothing is available, or an OSS transfer fails, the request fails
+instead of returning a misleading partial archive. The local service writes the
+ZIP to temporary disk and removes it after delivery. Each batch is limited to
+512 MB of uncompressed result files; keep the page open until it downloads.

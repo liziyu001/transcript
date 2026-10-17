@@ -11,7 +11,9 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.background import BackgroundTask
 
+from .bundles import BundleRequest, build_archive
 from .catalog import CollectionEdit, ImportBatch, ResourceEdit, collection_url, video_url
 from .cleanup import CleanupRequest
 from .local_client import CloudClient, CloudError
@@ -126,6 +128,18 @@ def create_app(data_dir=None, cloud=None, start_worker=True):
     @app.get("/api/library")
     def library():
         return cloud.request("GET", "/studio/library")
+
+    @app.post("/api/download-results")
+    def download_results(body: BundleRequest):
+        plan = cloud.request("POST", "/studio/download-plan", body.model_dump())
+        archive = build_archive(plan, store.root / "bundles")
+        return FileResponse(
+            archive,
+            media_type="application/zip",
+            filename="转录结果.zip",
+            headers={"X-Bundle-Missing": str(len(plan["missing"]))},
+            background=BackgroundTask(archive.unlink, missing_ok=True),
+        )
 
     @app.get("/api/settings")
     def settings():

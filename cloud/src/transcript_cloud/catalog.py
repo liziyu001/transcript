@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .bundles import BundleRequest, bundle_plan
 from .cleanup import CleanupRequest, cleanup
 from .models import StudioSettings
 from .storage import Conflict
@@ -299,6 +300,10 @@ def install_routes(app, service, auth):
 
     catalog = Catalog(service)
     router = APIRouter(prefix="/api/studio", dependencies=auth)
+
+    @router.post("/download-plan")
+    def download_plan(body: BundleRequest):
+        return bundle_plan(catalog, body)
 
     @router.get("/library")
     def library():
