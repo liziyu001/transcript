@@ -1,4 +1,4 @@
-"""Cloud-owned library metadata. Media objects and recognition jobs stay immutable."""
+"""Cloud-owned library metadata and explicit media cleanup."""
 
 import hashlib
 import re
@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .cleanup import CleanupRequest, cleanup
 from .models import StudioSettings
 from .storage import Conflict
 
@@ -198,7 +199,8 @@ class Catalog:
         resource = self.resource(rid)
         changes = body.model_dump(exclude_none=True)
         for aid in changes.get("audio_ids", []):
-            if not self.records.get("audio", aid):
+            recording = self.records.get("audio", aid)
+            if not recording or recording.get("state") != "ready":
                 raise ValueError("音频尚未上传并注册。")
         if "audio_ids" in changes:
             changes["uploads_managed"] = True
@@ -247,11 +249,23 @@ class Catalog:
                 continue
             r = dict(r, audio=[], parsed=[], outputs=[])
             r["exported_parts"] = 0
+            r["cleanup_pending"] = []
+            r["audio_deleted_count"] = 0
+            r["oss_audio_bytes"] = 0
+            r["part_total"] = len(r.get("audio_ids", []))
             for aid in r.get("audio_ids", []):
                 if aid not in audio:
                     continue
                 a = audio[aid]
-                r["audio"].append({"path": a["key"], "id": aid, "title": a["title"]})
+                if a.get("cleanup"):
+                    r["cleanup_pending"].append(a["cleanup"]["category"])
+                if a["state"] == "ready":
+                    r["audio"].append(
+                        {"path": a["key"], "id": aid, "title": a["title"], "size": a["size"]}
+                    )
+                    r["oss_audio_bytes"] += a["size"]
+                elif a["state"] == "deleted":
+                    r["audio_deleted_count"] += 1
                 candidates = sorted(
                     (j for j in jobs if j["audio_id"] == aid),
                     key=lambda j: j["created"],
@@ -264,8 +278,10 @@ class Catalog:
                 if exported:
                     r["outputs"].extend(exported["outputs"].values())
                     r["exported_parts"] += 1
-            r["parsed_complete"] = bool(r["audio"]) and len(r["parsed"]) == len(r["audio"])
-            r["exported_complete"] = bool(r["audio"]) and r["exported_parts"] == len(r["audio"])
+            r["parsed_complete"] = bool(r["part_total"]) and len(r["parsed"]) == r["part_total"]
+            r["exported_complete"] = (
+                bool(r["part_total"]) and r["exported_parts"] == r["part_total"]
+            )
             resources.append(r)
         groups = {
             c["id"]: c for c in all_records(self.records, "collection") if not c.get("deleted")
@@ -299,6 +315,10 @@ def install_routes(app, service, auth):
     @router.post("/import")
     def import_batch(body: ImportBatch):
         return catalog.import_batch(body)
+
+    @router.post("/cleanup")
+    def delete_files(body: CleanupRequest):
+        return cleanup(catalog, body)
 
     @router.patch("/resources/{rid}")
     def edit(rid: str, body: ResourceEdit):

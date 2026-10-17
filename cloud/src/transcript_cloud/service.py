@@ -19,9 +19,23 @@ class Service:
         self.provider, self.settings, self.clock = provider, settings, clock
 
     def register(self, audio):
-        self.artifacts.verify(audio)
         existing = self.records.get("audio", audio.sha256)
+        if existing and existing.get("state") == "deleting":
+            raise Conflict("OSS 文件清理尚未完成，请先重试清理。")
+        self.artifacts.verify(audio)
         if existing:
+            if existing.get("state") == "deleted":
+                return self.records.put(
+                    "audio",
+                    audio.sha256,
+                    {
+                        **existing,
+                        **audio.model_dump(),
+                        "state": "ready",
+                        "deleted_at": None,
+                    },
+                    existing["revision"],
+                )
             return existing
         try:
             return self.records.put(
@@ -30,7 +44,32 @@ class Service:
                 {**audio.model_dump(), "created": self.clock(), "state": "ready"},
             )
         except Conflict:
-            return self.records.get("audio", audio.sha256)
+            current = self.records.get("audio", audio.sha256)
+            if not current or current.get("state") != "ready":
+                raise
+            return current
+
+    def reserve_media(self, audio_id, job_id, attempt, require_audio=True):
+        """Durable intent fences deletion before a new job/attempt becomes visible.
+
+        A crashed request can replay its job identity. Cleanup refuses incomplete intents
+        rather than guessing whether a provider request may still be in flight.
+        """
+        for _ in range(5):
+            audio = self.records.get("audio", audio_id)
+            if not audio or audio.get("state") == "deleting":
+                raise Conflict("OSS 文件正在清理，请完成清理后再创建任务。")
+            if require_audio and audio.get("state") == "deleted":
+                raise ValueError("OSS 音频已删除，请先重新下载并上传。")
+            guards = dict(audio.get("job_guards", {}))
+            guards[job_id] = max(guards.get(job_id, 0), attempt)
+            try:
+                return self.records.put(
+                    "audio", audio_id, {**audio, "job_guards": guards}, audio["revision"]
+                )
+            except Conflict:
+                continue
+        raise Conflict("音频记录已更改，请重试。")
 
     def create(self, request):
         audio = self.records.get("audio", request.audio_id)
@@ -47,6 +86,7 @@ class Service:
         job_id = hashlib.sha256(identity.encode()).hexdigest()[:32]
         job = self.records.get("job", job_id)
         if not job:
+            self.reserve_media(request.audio_id, job_id, 1)
             try:
                 job = self.records.put(
                     "job",
@@ -85,6 +125,11 @@ class Service:
             )
         if job["state"] not in {"failed", "needs_attention"}:
             raise ValueError("Only failed or uncertain jobs can be retried")
+        if job.get("results_deleted"):
+            raise ValueError("转录结果已删除，请从资源库创建新的解析任务。")
+        self.reserve_media(
+            job["audio_id"], job_id, job["attempt"] + 1, require_audio=not bool(job.get("raw_key"))
+        )
         if task_id:
             job["task_id"] = task_id
         job.update(
@@ -109,6 +154,9 @@ class Service:
             raise ValueError("Use retry for a stopped job")
         if job.get("lease_until", 0) > self.clock():
             raise Conflict("Worker is active")
+        self.reserve_media(
+            job["audio_id"], job_id, job["attempt"] + 1, require_audio=not bool(job.get("raw_key"))
+        )
         # Explicit recovery for a workflow that failed outside the worker.
         job["attempt"] += 1
         job = self.save(job)
@@ -119,6 +167,7 @@ class Service:
         job = self.require(job_id)
         if job["state"] != "completed" or not job.get("raw_key"):
             raise ValueError("Only completed jobs with saved raw results can be re-exported")
+        self.reserve_media(job["audio_id"], job_id, job["attempt"] + 1, require_audio=False)
         if output is not None:
             job["output"] = output
         job.update(

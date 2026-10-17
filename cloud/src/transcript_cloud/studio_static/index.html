@@ -107,6 +107,7 @@
             </select>
             <span id="selection-label">选择资源后即可创建任务</span>
             <div class="actions">
+              <button id="cleanup-selected" data-cleanup="selected" disabled>清理 OSS</button>
               <button data-stage="metadata" disabled>↻ <span>视频信息</span></button>
               <button data-stage="download" disabled>↓ <span>下载并上传</span></button
               ><button data-stage="parse" disabled>≋ <span>解析</span></button
@@ -316,11 +317,29 @@
       </div>
       <div id="detail-content"></div>
     </dialog>
+    <dialog id="cleanup-dialog">
+      <form id="cleanup-form">
+        <div class="dialog-heading"><h2>清理 OSS 文件</h2><button type="button" data-close="cleanup-dialog" class="icon-button" aria-label="关闭">×</button></div>
+        <p id="cleanup-summary"></p>
+        <label>清理范围<select id="cleanup-category">
+          <option value="audio">仅音频（保留转录结果）</option>
+          <option value="outputs">仅导出文件（含历史版本）</option>
+          <option value="results">全部转录结果与导出文件</option>
+          <option value="all">全部 OSS 音频与结果</option>
+        </select></label>
+        <p id="cleanup-description" class="field-note"></p>
+        <p>资源记录和本地缓存会保留。运行中或待确认的任务、与其他资源共享的文件会阻止清理。失败时请重试相同清理范围。</p>
+        <label class="checkbox-label"><input id="cleanup-confirm" type="checkbox" required>我确认永久删除所选 OSS 文件，此操作无法撤销</label>
+        <p id="cleanup-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions"><button type="button" data-close="cleanup-dialog">取消</button><button type="submit" class="primary">永久删除</button></div>
+      </form>
+    </dialog>
     <div id="context-menu" class="context-menu" hidden>
       <button data-action="download" class="context-menu-item">↓ 下载并上传 OSS</button>
       <button data-action="parse" class="context-menu-item">≋ 解析音频</button>
       <button data-action="export" class="context-menu-item">↗ 导出文本</button>
       <div class="context-menu-divider"></div>
+      <button data-action="cleanup" class="context-menu-item danger">清理 OSS 文件</button>
       <button data-action="delete-resource" class="context-menu-item danger">归档资源记录</button>
     </div>
     <div id="toast" class="toast" role="status" hidden></div>

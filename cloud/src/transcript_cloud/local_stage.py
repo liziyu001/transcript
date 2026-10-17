@@ -132,7 +132,11 @@ def execute(store, job, item, cloud, download=None, uploader=None):
             save(audio_ids=audio_ids, uploaded=True)
     if kind == "download":
         return {"message": "音频已上传 OSS。", "audio_ids": saved["audio_ids"]}
-    audio_ids = saved.get("audio_ids") or [a["id"] for a in resource["audio"]]
+    audio_ids = (
+        resource.get("audio_ids", [])
+        if kind == "export"
+        else saved.get("audio_ids") or [a["id"] for a in resource["audio"]]
+    )
     if not audio_ids:
         raise ValueError("请先运行下载并上传，或选择完整流程。")
     jobs = cloud.all("jobs")
@@ -164,7 +168,8 @@ def execute(store, job, item, cloud, download=None, uploader=None):
                 (
                     j
                     for j in candidates
-                    if j["state"] in {"queued", "submitting", "running", "exporting", "completed"}
+                    if j["state"] in {"queued", "submitting", "running", "exporting"}
+                    or (j["state"] == "completed" and j.get("raw_key"))
                 ),
                 None,
             )

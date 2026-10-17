@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Resp
 from pydantic import BaseModel, ConfigDict, Field
 
 from .catalog import CollectionEdit, ImportBatch, ResourceEdit, collection_url, video_url
+from .cleanup import CleanupRequest
 from .local_client import CloudClient, CloudError
 from .local_store import LocalStore, summary
 from .local_worker import Worker
@@ -179,6 +180,17 @@ def create_app(data_dir=None, cloud=None, start_worker=True):
             ):
                 raise ValueError("请先取消该资源的本地任务。")
         return cloud.request("DELETE", f"/studio/resources/{rid}")
+
+    @app.post("/api/cleanup")
+    def delete_files(body: CleanupRequest):
+        for job in store.jobs():
+            if any(
+                i["resource_id"] in body.resource_ids
+                and i["state"] in {"pending", "running", "waiting"}
+                for i in job["items"]
+            ):
+                raise ValueError("所选资源有本地任务，请先完成或取消任务再清理 OSS。")
+        return cloud.request("POST", "/studio/cleanup", body.model_dump())
 
     @app.get("/api/resources/{rid}/files/{category}/{index}")
     def file(rid: str, category: str, index: int, download: bool = False, preview: bool = False):

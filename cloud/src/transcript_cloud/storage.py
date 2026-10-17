@@ -158,6 +158,24 @@ class Artifacts:
     def get_json(self, key):
         return json.loads(self.bucket().get_object(key).read())
 
+    def ensure_unversioned(self):
+        if self.bucket().get_bucket_versioning().status in {"Enabled", "Suspended"}:
+            raise ValueError(
+                "OSS 已启用版本控制；请在 OSS 控制台清理历史版本，避免仅创建删除标记而未释放空间。"
+            )
+
+    def delete(self, key):
+        # Exact keys only; no bucket-wide or prefix deletion is exposed to callers.
+        import re
+
+        if not re.fullmatch(
+            r"audio/[a-f0-9]{64}/source\.[a-z0-9]{1,8}|"
+            r"results/[a-f0-9]{32}/(?:raw\.json|exports/[1-9][0-9]*/transcript\.(?:json|txt|srt|vtt))",
+            key,
+        ):
+            raise ValueError("拒绝删除非媒体文件路径。")
+        self.bucket().delete_object(key)
+
 
 class Flows:
     def __init__(self, settings, context=None):

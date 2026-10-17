@@ -386,3 +386,23 @@ References: [ROS CDK](https://www.alibabacloud.com/help/en/ros/developer-referen
 [FC Python runtimes](https://help.aliyun.com/zh/functioncompute/python3/),
 [FC custom domains](https://help.aliyun.com/zh/ros/developer-reference/aliyun-fc3-customdomain),
 [StartExecution authorization](https://help.aliyun.com/en/document_detail/2590640.html).
+
+## OSS cleanup in Compose Studio
+
+Select resources and click **清理 OSS**, or open **清理 OSS 文件** in a resource's
+ details/context menu. The default deletes only source audio, keeping transcript
+ JSON and exported files available for download and re-export. Other choices remove
+ all historical export attempts, all transcript results, or both audio and results.
+ Every deletion requires explicit confirmation; resource records and local cache remain.
+
+Active or uncertain cloud jobs and unfinished local jobs block cleanup. Shared audio
+ requires selecting every referencing resource (restore archived records first).
+ Interrupted cleanup persists its exact file list; retry the same category to finish.
+ New jobs are blocked until that cleanup finishes. To parse again after audio deletion,
+ download/upload again; after result deletion, select **重新处理** for a new paid parse.
+
+The API role can delete only `audio/*` and `results/*`, never deployment packages.
+ Cleanup currently requires an unversioned bucket: enabled/suspended versioning is
+ rejected before deletion because ordinary deletion would leave historical bytes.
+ Versioned buckets must be cleaned in the OSS console. See
+ [OSS delete markers](https://www.alibabacloud.com/help/en/oss/user-guide/delete-marker).

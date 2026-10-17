@@ -240,6 +240,14 @@ def synth(outdir):
         "fc.aliyuncs.com",
         data_policy
         + [
+            statement(["oss:GetBucketVersioning"], [sub("acs:oss:*:*:${BucketName}")]),
+            statement(
+                ["oss:DeleteObject"],
+                [
+                    sub("acs:oss:*:*:${BucketName}/audio/*"),
+                    sub("acs:oss:*:*:${BucketName}/results/*"),
+                ],
+            ),
             statement(
                 ["fnf:StartExecution"],
                 # Current StartExecution API documents only All Resource authorization.

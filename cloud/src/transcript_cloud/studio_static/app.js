@@ -248,7 +248,7 @@ function renderLibrary() {
             )
             .filter(Boolean)
             .join(", "),
-        )}</td><td>${r.audio.length ? badge("✓ 已就绪", "green") : badge("未下载")}</td><td>${r.parsed_complete ? badge(r.exported_complete ? "✓ 已导出" : "✓ 已解析", "green") : r.parsed.length ? badge(`解析中 ${r.parsed.length}/${r.audio.length}`, "blue") : badge("未解析")}</td><td><button class="icon-button" data-resource="${r.id}" aria-label="打开 ${esc(r.title)}">↗</button></td></tr>`,
+        )}</td><td>${r.audio.length ? badge("✓ 已就绪", "green") : badge(r.cleanup_pending?.length ? "清理待重试" : r.audio_deleted_count ? "已清理" : "未下载")}</td><td>${r.parsed_complete ? badge(r.exported_complete ? "✓ 已导出" : "✓ 已解析", "green") : r.parsed.length ? badge(`解析中 ${r.parsed.length}/${r.part_total || r.audio.length}`, "blue") : badge("未解析")}</td><td><button class="icon-button" data-resource="${r.id}" aria-label="打开 ${esc(r.title)}">↗</button></td></tr>`,
     )
     .join("");
   $("#library-empty").hidden = rows.length > 0;
@@ -275,6 +275,7 @@ function renderSelection() {
   $("#selection-label").textContent = n
     ? `已选择 ${n} 个资源`
     : "选择资源后即可创建任务";
+  $("#cleanup-selected").disabled = !n;
   $$("[data-stage]").forEach((x) => (x.disabled = !n));
   const rows = filtered();
   const count = rows.filter((r) => state.selected.has(r.id)).length;
@@ -419,7 +420,7 @@ function openResource(id) {
       })
       .join("");
   $("#detail-content").innerHTML =
-    `<p><button data-refresh-resource="${r.id}">刷新文件列表</button> <button data-edit-resource="${r.id}">编辑资源与合集</button></p><p><a href="${esc(r.url)}" target="_blank" rel="noreferrer">打开原始视频 ↗</a></p><div class="detail-section" id="resource-metadata">${renderMetadata(r)}</div><div class="detail-section"><h3>OSS 音频 · ${r.audio.length} 个分段</h3>${files("audio", r.audio) || "<p>暂无 OSS 音频，请运行下载并上传。</p>"}</div><div class="detail-section"><h3>转录数据</h3>${files("parsed", r.parsed) || "<p>暂无转录数据，请先下载音频，再运行解析。</p>"}</div><div class="detail-section"><h3>OSS 导出文件</h3>${files("outputs", r.outputs) || "<p>解析完成后运行导出，即可生成文本或字幕文件。</p>"}</div><pre class="resource-preview" id="file-preview" hidden></pre>`;
+    `<p><button data-cleanup="${r.id}">清理 OSS 文件</button> <button data-refresh-resource="${r.id}">刷新文件列表</button> <button data-edit-resource="${r.id}">编辑资源与合集</button></p><p><a href="${esc(r.url)}" target="_blank" rel="noreferrer">打开原始视频 ↗</a></p><div class="detail-section" id="resource-metadata">${renderMetadata(r)}</div><div class="detail-section"><h3>OSS 音频 · ${r.audio.length} 个分段</h3>${files("audio", r.audio) || "<p>暂无 OSS 音频，请运行下载并上传。</p>"}</div><div class="detail-section"><h3>转录数据</h3>${files("parsed", r.parsed) || "<p>暂无转录数据，请先下载音频，再运行解析。</p>"}</div><div class="detail-section"><h3>OSS 导出文件</h3>${files("outputs", r.outputs) || "<p>解析完成后运行导出，即可生成文本或字幕文件。</p>"}</div><pre class="resource-preview" id="file-preview" hidden></pre>`;
   if (!$("#detail-dialog").open) $("#detail-dialog").showModal();
 }
 function renderSettings() {
@@ -435,6 +436,7 @@ document.addEventListener("click", async (event) => {
   if (!target) return;
   const d = target.dataset;
   try {
+    if (d.cleanup) openCleanup(d.cleanup === "selected" ? [...state.selected] : [d.cleanup]);
     if (d.refreshResource) openResource(d.refreshResource);
     if (d.editResource) {
       const r = state.resources.find(x => x.id === d.editResource);
@@ -699,6 +701,8 @@ $("#context-menu").addEventListener("click", async event => {
     if (["download", "parse", "export"].includes(action)) {
       state.selected = new Set([resource.id]);
       await openJob(action);
+    } else if (action === "cleanup") {
+      openCleanup([resource.id]);
     } else if (action === "delete-resource") {
       if (confirm(`归档「${resource.title}」？云端文件与任务历史会保留。重新导入链接可恢复记录。`)) {
         await api(`/resources/${resource.id}`, {method: "DELETE"});
@@ -725,4 +729,44 @@ $("#remove-collection").onclick = async () => {
   const c = state.collections.find(x => x.id === state.collection);
   if (!confirm(`移除合集「${c.name}」？资源、音频和结果会保留。`)) return;
   try { await api(`/collections/${c.id}`, {method: "DELETE"}); state.collection = null; await refresh(); } catch(e) { toast(e.message, true); }
+};
+
+let cleanupIds = [];
+const cleanupDescriptions = {
+  audio: "永久删除 OSS 音频。保留转录数据和导出文件，可继续下载、重新导出。再次解析需重新下载并上传音频。未解析的音频也会删除。",
+  outputs: "删除所有历史导出文件，保留原始转录数据，可重新导出。",
+  results: "删除原始转录数据及所有历史导出文件。恢复结果需要重新解析，可能产生费用。",
+  all: "删除音频、原始转录数据及所有历史导出文件。恢复需要重新下载、上传和解析。"
+};
+function describeCleanup() {
+  $("#cleanup-description").textContent = cleanupDescriptions[$("#cleanup-category").value];
+  $("#cleanup-confirm").checked = false;
+}
+function openCleanup(ids) {
+  cleanupIds = ids;
+  const rows = state.resources.filter(r => ids.includes(r.id));
+  const bytes = rows.reduce((n, r) => n + (r.oss_audio_bytes || 0), 0);
+  $("#cleanup-summary").textContent = `已选择 ${rows.length} 个资源；当前音频约 ${(bytes / 1024 / 1024).toFixed(1)} MB；其中 ${rows.filter(r => r.parsed_complete).length} 个已完成解析。`;
+  $("#cleanup-category").value = rows.find(r => r.cleanup_pending?.length)?.cleanup_pending[0] || "audio";
+  $("#cleanup-error").textContent = "";
+  describeCleanup();
+  $("#cleanup-dialog").showModal();
+}
+$("#cleanup-category").onchange = describeCleanup;
+$("#cleanup-form").onsubmit = async event => {
+  event.preventDefault();
+  const button = event.submitter;
+  button.disabled = true;
+  $("#cleanup-error").textContent = "";
+  try {
+    await post("/cleanup", {resource_ids: cleanupIds, category: $("#cleanup-category").value, confirmed: $("#cleanup-confirm").checked});
+    $("#cleanup-dialog").close();
+    toast("OSS 文件已清理，资源记录已保留");
+  } catch (e) {
+    $("#cleanup-error").textContent = messageZh(e.message);
+  } finally {
+    button.disabled = false;
+    await refresh();
+    if (state.detail?.kind === "resource") openResource(state.detail.id);
+  }
 };
