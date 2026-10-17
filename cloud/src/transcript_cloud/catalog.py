@@ -108,7 +108,6 @@ class Catalog:
         return {
             **defaults.model_dump(),
             **{k: v for k, v in saved.items() if k in StudioSettings.model_fields},
-            "processing_concurrency": 0,
         }
 
     def save_settings(self, body):

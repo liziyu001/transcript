@@ -1,422 +1,80 @@
 # Transcript Studio
 
-The `codex/aliyun-cloud` branch adds an independent API-only cloud application in
-[`cloud/`](cloud/README.md): local scraping/resumable upload, a personal control
-panel, Alibaba Cloud workers/storage, and Python ROS CDK/deployment scripts.
-The working local application remains on `master`. See the cloud README for its
-separate `uv` environment and deployment sequence; the Docker instructions below
-describe the original local application.
+A Chinese Web UI running locally in Docker Compose, controlling an Alibaba Cloud serverless parser. Collections and records come from cloud metadata; videos are downloaded and uploaded locally; parsing runs in the cloud. Audio and results live in OSS. No hosted website or local Whisper installation is needed.
 
-The cloud application now also has a Chinese Compose Studio using the same interface:
-`docker compose -f compose.cloud.yaml up -d --build` (port 8787). It reads cloud
-collections, downloads/uploads locally, and parses in Alibaba Cloud with audio/results
-in OSS. Update the deployed cloud API first and configure `cloud/.env.local`; see the
-[cloud Studio setup](cloud/README.md#chinese-compose-control-panel).
+## New developer setup
 
-A local resource library and job-control website for Bilibili audio and transcripts.
-The existing command-line tools remain available below.
+Install **Python 3.12**, **uv**, and **Docker with Compose v2**. Run commands from the repository root in PowerShell or bash. The launcher installs locked dependencies into `cloud/.venv`. Node.js and Alibaba CLI/CDK are not required for deployment.
 
-## Start with Docker Compose
+```console
+python cloudctl.py init
+```
 
-```bash
+Edit **`cloud/.env.local`**. Supply five values:
+
+| Key | Value |
+| --- | --- |
+| `ALIBABA_CLOUD_ACCESS_KEY_ID` | Alibaba account/RAM access key ID |
+| `ALIBABA_CLOUD_ACCESS_KEY_SECRET` | Matching access key secret |
+| `TC_DASHSCOPE_KEY` | DashScope API key for transcription |
+| `TC_BUCKET` | Globally unique OSS bucket name |
+| `TC_OTS_INSTANCE` | New Tablestore instance name |
+
+`init` generates `TC_PANEL_TOKEN`. Defaults: `TC_REGION=cn-beijing`, `TC_PREFIX=transcript`. To use an existing bucket in this region, set `TC_EXISTING_BUCKET=true`; otherwise deployment creates it. Existing Tablestore instances cannot be adopted automatically. For temporary STS credentials, also fill `ALIBABA_CLOUD_SECURITY_TOKEN` and refresh it before expiry.
+
+Enable OSS, Tablestore, Function Compute, CloudFlow, SLS, ROS and DashScope in your Alibaba account. The deployment identity needs permission to manage the resources in `cloud/infra/app.py`, including RAM roles/policies and role assignment, and upload code/audio to OSS. The shipped model/endpoints target Beijing. Changing the region alone does not migrate data or make a model available elsewhere.
+
+```console
+python cloudctl.py up
 docker compose up -d --build
 ```
 
-Open **http://localhost:8000**. No npm build or local Python/FFmpeg installation is
-needed for Docker. The first build needs access to Docker Hub, GHCR, PyPI, and the
-Debian package repositories. The first transcription with each model downloads
-weights from Hugging Face; subsequent jobs reuse the persistent model cache.
+Open **http://localhost:8787**. `up` builds the Linux function ZIP, discovers/creates the two ROS stacks, uploads code, deploys compute, waits for completion, and writes the API URL back to the env file. It generates `cloud/.panel.env` for Compose; do not edit that derived file.
 
-The supplied image uses **CPU + int8**. Start with `tiny` or `base`; larger models
-use substantially more memory. Selecting CUDA in the UI is intended for a local
-environment with compatible NVIDIA libraries; the supplied image does not include
-a CUDA runtime or GPU Compose configuration.
+Credentials come directly from the env file: no temporary shell variables, CLI login, stack IDs or manually copied URLs. Quote values containing spaces or `#`; `$` is literal. Keep both env files private and out of Git. The panel receives OSS credentials and its API token, but not the DashScope key.
 
-```bash
-docker compose logs -f studio   # application logs
-docker compose down            # stop; library and files are retained
-docker compose up -d --build    # rebuild after updating the checkout
+## Everyday commands
+
+| Command | Effect |
+| --- | --- |
+| `python cloudctl.py up` | Build and create/update compute; ensure storage exists |
+| `python cloudctl.py redeploy` | Same as `up`; update code/config in place |
+| `python cloudctl.py build` | Build templates and Linux ZIP, without cloud calls |
+| `python cloudctl.py up --no-build` | Deploy last build; reject changed source/dependencies |
+| `python cloudctl.py status` | Show discovered stack status |
+| `python cloudctl.py events` | Show recent ROS deployment events |
+| `python cloudctl.py check` | Check API auth/metadata and refresh panel env; no model call |
+| `python cloudctl.py plan` | Validate config and summarize targets offline; not a ROS change set |
+| `python cloudctl.py down` | Remove app stack: functions, workflow, roles and logs |
+| `python cloudctl.py destroy` | Alias of `down`, with the same data retention |
+| `docker compose down` | Stop local panel; preserve its volume |
+
+**`down`/`destroy` retain the storage stack, OSS objects and Tablestore records. Storage charges can continue.** `up` reuses storage and recreates compute. Let active jobs finish before taking cloud compute down. Permanent erasure requires explicit deletion of the retained bucket/Tablestore resources through Alibaba Cloud; there is no automated data-purge command. Existing buckets are never taken over or deleted.
+
+After changing code or cloud secrets:
+
+```console
+python cloudctl.py redeploy
+docker compose up -d --build
+python cloudctl.py check
 ```
 
-Set `STUDIO_PORT` in your environment or a local `.env` file to change port 8000.
-The service binds to your computer's loopback address. It is a personal tool with
-no login system; keep that binding for personal use.
+For separate build/deploy steps, run `build` then `up --no-build`. `--offline` lets the package build use a populated uv cache; deployment still needs network access. Commands accept `--env-file PATH`. Compose uses the most recently generated panel env; use one target at a time per checkout. Run only one lifecycle operation at a time.
 
-### Everyday workflow
+Keep `TC_PREFIX`, `TC_BUCKET`, `TC_OTS_INSTANCE` and `TC_REGION` stable. Changing them is not a rename/migration. The command refuses to update a discovered stack pointing at different storage.
 
-1. **Add resources → Paste video links:** enter one full Bilibili video URL per
-   line. Records go into **General**. Share parameters are removed and duplicate
-   URLs are deduplicated. Multipart videos are handled as one resource containing
-   multiple audio/transcript parts. Short links are not supported; paste their
-   expanded `/video/BV…` or `/video/av…` URL.
-2. **Add resources → Import a collection:** name it and paste a
-   `https://space.bilibili.com/USER/lists/ID?type=series` or `?type=season` URL.
-   A discovery job resolves all pages and adds records to the collection. Repeat
-   an import to discover additions. A resource can belong to multiple collections.
-3. Select records and choose **Download**, **Parse**, **Export**, or **Full pipeline**.
-   Parse requires downloaded audio; export requires saved transcript data. Full
-   pipeline supplies those prerequisites automatically.
-4. Enable **Dry run** in the job dialog to see the planned steps and prerequisite
-   problems without network requests, media downloads, model loading, or resource
-   changes. Discovery dry runs validate the URL and show the discovery plan; they
-   do not enumerate remote videos. Dry-run jobs themselves are saved in history.
-5. Open **Job queue** for per-resource progress, errors, activity, settings snapshots,
-   and worker logs. **Pause** finishes active stages before pausing and starts no new stages.
-   **Cancel** terminates all active child processes for that job. **Resume** continues paused work;
-   **Retry incomplete** retries failed/cancelled items and preserves completed ones.
-6. Click a resource title to listen to audio, preview transcript files, and download
-   TXT, VTT, SRT, or JSON output. Use **Configuration** to change downloader,
-   parser, and export defaults for future jobs.
+## Development and troubleshooting
 
-Downloads, collection discovery, and video metadata share one serial scraping lane.
-Cloud parsing and exports run independently, with a configurable concurrency of
-1–16 resources (default 4) under Configuration. Local Whisper uses a separate
-single slot. Concurrency changes apply to subsequent stage starts; already running
-stages finish normally. Multiple parts of one resource are still parsed sequentially.
-Full pipelines checkpoint after each stage, so parsing one recording can overlap
-with downloading the next. Operations on the same resource never run simultaneously.
-Parse/export jobs wait for runnable upstream jobs when their required files are
-missing; without an upstream job they report the usual prerequisite error.
-
-Parser, downloader, and output settings are captured when jobs are queued. Existing audio/transcripts are reused
-unless **Reprocess existing results** is selected. To apply a new parser model to
-an existing transcript, queue Parse with reprocessing enabled. Export always writes
-a new version, so output changes never require rerunning Whisper.
-
-### Video metadata before download
-
-Collection imports save titles and total durations directly from the paginated
-listing (`/x/series/archives` for series, the seasons listing for seasons).
-They make approximately one request per 30 entries, excluding retries, and
-never queue individual video lookups, even when a duration is missing.
-Reimporting a collection updates its summaries while preserving existing part
-details and known durations when the listing omits them.
-
-Each library entry displays total length, plus part count when available.
-Part details are optional: select entries and click **视频信息**, or open a
-resource and click **刷新视频信息（含分P）**. This uses one
-`/x/web-interface/view` lookup per video to fetch part counts, titles, CIDs,
-and durations. New individual link imports also queue this lookup automatically.
-Open the resource to see fetched per-part durations and links.
-For example, `BV1QcLTzfEj8` reports
-**2 parts · 4:14:03**: P1 **2:00:30**, P2 **2:13:33**. Total duration is summed
-across all parts, not taken from the first part. These are Bilibili's reported
-video durations, not measurements of downloaded or trimmed audio.
-
-Metadata refresh does not download media or change transcripts/exports.
-Older libraries are migrated automatically;
-unknown duration is displayed as unknown, never zero. Failed lookups remain
-retryable in the job queue and preserve the last successful metadata.
-
-The standalone scraper exposes `get_video_metadata(url)` and
-`AudioScraper.resolve_metadata(url)` for the same metadata-only operation.
-
-### Cloud transcription in the console
-
-In **配置管理 → 解析器**, select **ASR Flash（阿里云 API）** or
-**Paraformer v2（阿里云 API）**, choose the region, enter your Alibaba Cloud
-Model Studio (DashScope/百炼) API key, and click **保存配置**.
-Both parsers can use the same key within a region. Paraformer requires Beijing;
-ASR Flash also supports Singapore, which requires a key issued in that region.
-Get a key from [Alibaba Cloud's instructions](https://help.aliyun.com/zh/model-studio/get-api-key).
-
-ASR Flash offers `qwen-audio-3.1-asr-flash-filetrans` (default) and
-`qwen3-asr-flash-filetrans`. These are the long-recording APIs with subtitle
-timestamps, rather than the short-audio chat APIs. Paraformer uses `paraformer-v2`.
-Use `zh` for Chinese or `auto` for mixed languages. Whisper device, precision,
-beam size and VAD settings apply only when the local parser is selected.
-
-Select downloaded resources and run **解析音频** or **完整流程**. Uploading,
-cloud task submission, polling, and result download happen automatically; you
-do not need to create a storage bucket. Existing TXT, VTT, SRT and JSON exports
-work with either parser. To replace an existing transcript after changing models,
-run **Parse with Reprocess existing results** enabled. Running Export alone
-does not transcribe or call a cloud model. Download and export remain independent.
-
-Cloud recognition sends the audio to Alibaba and is billed by the provider.
-Each file is limited to 12 hours / 2 GB (the temporary-upload policy can impose
-a smaller size limit). Oversized files must be split before using this version.
-Temporary uploads expire after 48 hours; this upload mode is intended for this
-personal, sequential console rather than a high-concurrency production service.
-See the [upload contract](https://help.aliyun.com/zh/model-studio/get-temporary-file-url)
-and [file transcription contract](https://help.aliyun.com/zh/model-studio/non-realtime-speech-recognition-user-guide).
-
-Keys are stored in the local SQLite database separately from settings and are
-never returned to the browser, job snapshots, or exported transcripts. Storage
-is not encrypted: protect the data directory and its backups. Leave the key
-field blank to retain it; use the delete checkbox to remove a saved key for the
-selected region. Alternatively, set `DASHSCOPE_API_KEY` (Beijing) or
-`DASHSCOPE_INTL_API_KEY` (Singapore) in the server environment. Saved keys take
-precedence; deleting a saved key still allows an environment key to be used.
-Jobs snapshot model/region/settings, but resolve the current key when they run,
-so correcting a key also fixes retries of existing jobs.
-
-Remote task IDs and completed part results are saved under `cloud-tasks/`.
-**Retry incomplete** or resuming after a restart reuses those checkpoints.
-Cancelling the local job stops waiting; it does not cancel Alibaba's task or
-reverse its charges. The default wait limit is two hours and can be adjusted
-in Configuration. Once a task ID has been saved, a network interruption does
-not require another submission. If the submission response itself is lost,
-the task ID cannot be recovered automatically; a retry may create another paid
-task. Provider task/results expire, so resume interrupted jobs promptly.
-
-After updating the application, rebuild Docker with `docker compose up -d --build`,
-or run `uv sync --extra dev` and restart the local server. Refresh the browser
-to load the new configuration panel. The legacy command-line tool continues
-to use its own local Whisper settings; cloud selection is in the web console.
-
-### Local development
-
-```bash
-uv sync --extra dev
-uv run transcript-web
-# Open http://localhost:8000
-
-npm run check
-uv run pytest -q tests audio-scraper/tests
+```console
+python cloudctl.py test
+docker compose logs -f cloud-studio
+python cloudctl.py events
 ```
 
-FFmpeg must be on PATH for local audio conversion. The browser UI uses plain
-HTML/CSS/JavaScript and is served by FastAPI; npm is only needed for the optional
-JavaScript syntax check. Python dependencies are locked in `uv.lock`.
+`test` runs Python regression suites and Ruff. With Node installed, `npm run check` checks browser JavaScript syntax. Function logs are in SLS project `<prefix>-<account-id>-<region>`, logstore `functions`. Panel task details show local stage logs and cloud request IDs. Failed ROS creates can be resumed by fixing the cause and rerunning `up`; inspect events before retrying other failed states.
 
-Environment variables: `TRANSCRIPT_DATA_DIR` (default `data/control-center`),
-`HOST` (default `127.0.0.1`), `PORT` (default `8000`), and `HF_HOME` for model cache
-location. Run **one application instance/worker per data directory**. API reference:
-http://localhost:8000/docs (OpenAPI schema: `/openapi.json`).
+The Compose volume `transcript_cloud-studio-data` stores the local queue, logs, settings and retry state. Avoid `docker compose down -v` unless intentionally resetting these. Successfully uploaded and registered audio is removed locally; incomplete uploads may retain files for retry. Use panel OSS cleanup actions to reclaim cloud audio space after parsing. Batch result ZIPs preserve collection/video/part names and include a manifest; split selections over 512 MB.
 
-### Persistence and recovery
+To upgrade an older checkout using `cloud/deploy.local.json`, run `python cloudctl.py migrate` once, then `redeploy` and the default Compose command. Migration backs up the env file and preserves credentials. Legacy JSON and `compose.cloud.yaml` are no longer used. The previous implementation remains on `codex/aliyun-cloud`; this checkpoint is `codex/serverless-compose-cleanup`.
 
-Compose creates named volumes `studio-data` and `whisper-models` (prefixed by the
-Compose project name). The data volume contains:
-
-```text
-/data/
-  library.sqlite3          # collections, memberships, settings, jobs, item checkpoints
-  audio/<resource>/job-N/  # persistent audio parts
-  parsed/<resource>/      # canonical transcript JSON, independent of export formats
-  exports/<resource>/job-N/# versioned readable output files
-  logs/                   # per-item subprocess logs
-```
-
-Stop the service before backing up the complete data volume, and restore it at
-the same `/data` path. Do not use `docker compose down -v` unless you intend to
-delete the library and model cache. Old artifact versions and logs remain on disk;
-this small personal tool does not automatically prune them.
-
-After a restart, interrupted jobs become **paused** and retain completed items.
-Explicitly resume them in the UI. A killed transcription restarts the current
-resource, rather than resuming within a speech segment. Partial writes are not
-registered as completed artifacts. New downloads and exports use versioned paths;
-failed reprocessing leaves the last registered results available. Newly queued
-jobs continue automatically.
-
-Architecture: `web/store.py` owns persistence, `web/worker.py` owns scheduling and
-process lifecycle, `web/stages.py` adapts discovery/download/parser operations,
-`web/output.py` renders saved transcript data, and `web/app.py` exposes the API and
-UI. One sequential worker keeps model memory use predictable. A failed resource
-does not stop the remaining resources in a batch. Progress is polled every two
-seconds; model initialization has an explanatory status rather than an invented
-percentage. A failed collection import does not register a partial collection.
-
-Bilibili access restrictions/rate limits are reported as job errors. This version
-does not include cookie login or automatic import of legacy CLI output folders.
-The existing CLI and its data remain independent.
-
-## Legacy command-line tools
-
-Transcribe Bilibili videos and livestream recordings to text using Whisper.
-
-## Features
-
-- **Single Video Mode**: Process individual video URLs
-- **Collection Mode**: Batch process entire collections/series
-- **Resume Support**: Automatically resumes interrupted batch processing
-- **Progress Tracking**: Persistent progress file tracks completed, failed, and skipped videos
-- **Graceful Cancellation**: Press Ctrl+C to stop after current video completes
-- **Smart Skipping**: Automatically skips videos with existing transcripts
-
-## Installation
-
-This project uses [uv](https://github.com/astral-sh/uv) for dependency management.
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd transcript
-
-# Install dependencies with uv
-uv sync
-
-# Or manually install
-uv pip install -e .
-```
-
-## Usage
-
-### Standalone audio scraper
-
-The scraper is an independent `uv` project in `audio-scraper/`. It only installs
-`requests` and `yt-dlp`, so collection discovery and downloading can run without
-the transcription dependencies. Audio is saved as `.m4a` under `data/audio/` by
-video ID. Install `ffmpeg` and ensure it is on your `PATH` for audio extraction.
-
-```bash
-# Preview the video URLs in a collection (no audio is downloaded)
-uv run --project audio-scraper bilibili-audio-scraper list "https://space.bilibili.com/45502/lists/31284?type=series"
-
-# Save the URL list for later use
-uv run --project audio-scraper bilibili-audio-scraper list "https://space.bilibili.com/45502/lists/31284?type=series" --output videos.txt
-
-# Download from a saved list, repeated video URLs, or directly from a collection
-uv run --project audio-scraper bilibili-audio-scraper download --urls-file videos.txt
-uv run --project audio-scraper bilibili-audio-scraper download --video "https://www.bilibili.com/video/BV1xx411c7mD" --video "https://www.bilibili.com/video/BV1nWpz6zE4U"
-uv run --project audio-scraper bilibili-audio-scraper download --collection "https://space.bilibili.com/45502/lists/31284?type=series" --output-dir data/audio
-```
-
-The download command continues past individual failures and exits with a nonzero
-status if any URL failed. Rerunning it skips existing Bilibili `.m4a` files;
-`--force` downloads them again. Use `--timeout` and `--retries` to adjust network
-behavior. URL files contain one URL per line, and may have
-blank lines or lines starting with `#`.
-
-### Single Video
-
-Process one video at a time:
-
-```bash
-uv run python -m bilibili_transcript.main --video "https://www.bilibili.com/video/BV1xx411c7mD"
-```
-
-### Collection Processing
-
-Process all videos in a collection/series:
-
-```bash
-uv run python -m bilibili_transcript.main --collection "https://space.bilibili.com/45502/lists/31284?type=series"
-```
-
-The tool will:
-1. Fetch all video URLs from the collection (handles pagination automatically)
-2. Process each video sequentially
-3. Save progress after each video
-4. Skip videos that already have transcripts (unless `--no-skip-existing` is used)
-
-The transcription command keeps downloaded audio in `data/transcripts/.audio_cache/`
-so a failed transcription can reuse it on the next run.
-
-### Resume Interrupted Processing
-
-If processing is interrupted (Ctrl+C, error, or system shutdown), simply run the same command again:
-
-```bash
-uv run python -m bilibili_transcript.main --collection "https://space.bilibili.com/45502/lists/31284?type=series"
-```
-
-The tool will:
-- Load the progress file (`.batch_progress.json`)
-- Skip already-completed videos
-- Continue from where it left off
-
-### Options
-
-```
---output-dir PATH          Output directory (default: data/transcripts)
---model-size SIZE          Whisper model: tiny, base, small, medium, large (default: base)
---device DEVICE            Device: cpu, cuda (default: cpu)
---language LANG            Language code (default: zh)
---no-skip-existing         Reprocess videos even if transcripts exist
-```
-
-## Output Structure
-
-Transcripts are organized by video:
-
-```
-data/transcripts/
-├── .batch_progress.json          # Progress tracking (collection mode only)
-├── BV1xx411c7mD/                 # Video directory
-│   ├── transcript.json           # Structured transcript data
-│   ├── transcript.txt            # Plain text transcript
-│   └── transcript.vtt            # WebVTT subtitle format
-└── BV1nWpz6zE4U/
-    ├── transcript.json
-    ├── transcript.txt
-    └── transcript.vtt
-```
-
-## Progress File
-
-In collection mode, a `.batch_progress.json` file tracks:
-- `collection_url`: The collection being processed
-- `completed`: List of successfully processed video URLs
-- `failed`: List of failed videos with error messages
-- `skipped`: List of skipped videos with reasons
-- `last_updated`: Timestamp of last update
-
-Example:
-```json
-{
-  "collection_url": "https://space.bilibili.com/45502/lists/31284?type=series",
-  "total_videos": 1349,
-  "completed": [
-    "https://www.bilibili.com/video/BV1nWpz6zE4U",
-    "https://www.bilibili.com/video/BV1SmHy6eEbg"
-  ],
-  "failed": [
-    {
-      "url": "https://www.bilibili.com/video/BV1xxx",
-      "error": "Download failed",
-      "timestamp": "2026-10-14T10:30:00"
-    }
-  ],
-  "skipped": [],
-  "last_updated": "2026-10-14T10:35:00"
-}
-```
-
-## Cancellation
-
-Press **Ctrl+C** once to trigger graceful shutdown:
-- Current video will finish processing
-- Progress is saved automatically
-- Run the same command to resume
-
-## Examples
-
-```bash
-# Process collection with default settings (base model, CPU)
-uv run python -m bilibili_transcript.main --collection "https://space.bilibili.com/45502/lists/31284?type=series"
-
-# Use larger model for better accuracy
-uv run python -m bilibili_transcript.main \
-  --collection "https://space.bilibili.com/45502/lists/31284?type=series" \
-  --model-size large
-
-# Use GPU acceleration with larger model
-uv run python -m bilibili_transcript.main \
-  --collection "https://space.bilibili.com/45502/lists/31284?type=series" \
-  --device cuda \
-  --model-size large
-
-# Force reprocess everything (ignore existing transcripts)
-uv run python -m bilibili_transcript.main \
-  --collection "https://space.bilibili.com/45502/lists/31284?type=series" \
-  --no-skip-existing
-
-# Process single video with custom output directory
-uv run python -m bilibili_transcript.main \
-  --video "https://www.bilibili.com/video/BV1xx411c7mD" \
-  --output-dir ./my_transcripts
-```
-
-## Requirements
-
-- Python >= 3.9
-- yt-dlp (for video download)
-- faster-whisper (for transcription)
-- ffmpeg (for audio processing)
-
-## License
-
-MIT
+See [Architecture](docs/architecture.md) for components, storage, scheduling and recovery.

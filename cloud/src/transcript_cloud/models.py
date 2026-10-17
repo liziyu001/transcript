@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class AudioRegistration(BaseModel):
@@ -51,8 +51,13 @@ class StudioSettings(BaseModel):
     downloader: DownloadOptions = Field(default_factory=DownloadOptions)
     parser: ParseOptions = Field(default_factory=ParseOptions)
     output: OutputOptions = Field(default_factory=OutputOptions)
-    # Compatibility with saved configurations; no longer limits cloud jobs.
-    processing_concurrency: int = Field(default=0, ge=0, le=16)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_old_settings(cls, value):
+        if isinstance(value, dict):
+            return {k: v for k, v in value.items() if k != "processing_concurrency"}
+        return value
 
 
 NewJob.model_rebuild()
@@ -75,8 +80,6 @@ class Settings(BaseModel):
     flow: str
     panel_token: str = Field(min_length=24)
     dashscope_key: str = ""
-    allowed_origin: str = "http://localhost:8787"
-    max_active: int = Field(default=4, ge=1, le=16)
     job_timeout: int = 24 * 3600
 
     @classmethod

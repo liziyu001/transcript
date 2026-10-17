@@ -623,7 +623,6 @@ $("#settings-form").addEventListener("submit", async (e) => {
   button.disabled = true;
   try {
     const settings = {
-      processing_concurrency: 0,
       downloader: {timeout: Number(data.get("timeout")), retries: Number(data.get("retries"))},
       parser: {model: data.get("model"), language: data.get("language")},
       output: {formats: data.getAll("formats"), timestamps: data.has("timestamps")},

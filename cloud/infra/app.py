@@ -1,33 +1,31 @@
-"""ROS CDK (CloudFormation/CDK): synthesize locally; never deploy on import/run."""
+"""Pure Python ROS templates. No cloud access, JavaScript runtime or CDK required."""
 
 import argparse
 import json
 from pathlib import Path
 
-import jsii
-import ros_cdk_core as ros
-import ros_cdk_cxapi as cxapi
+
+class Resource:
+    def __init__(self, stack, name, value):
+        self.logical_id = name
+        self.value = value
+        stack["Resources"][name] = value
+
+    def add_override(self, key, value):
+        self.value[key] = value
 
 
-@jsii.implements(ros.ISynthesisSession)
-class TemplateSession:
-    """Emit ROS templates only; deployment uses ROS CLI, not the CDK asset manifest."""
+def new_stack():
+    return {
+        "ROSTemplateFormatVersion": "2015-09-01",
+        "Parameters": {},
+        "Resources": {},
+        "Outputs": {},
+    }
 
-    def __init__(self, outdir):
-        self._outdir = str(outdir)
-        self._assembly = cxapi.CloudAssemblyBuilder(self._outdir)
 
-    @property
-    def outdir(self):
-        return self._outdir
-
-    @property
-    def assembly(self):
-        return self._assembly
-
-    @property
-    def validate_on_synth(self):
-        return True
+def output(target, name, value):
+    target["Outputs"][name] = {"Value": value}
 
 
 def workflow(worker_arn, name="transcript-parse"):
@@ -64,17 +62,21 @@ def workflow(worker_arn, name="transcript-parse"):
 
 
 def resource(stack, name, type_, properties, retain=False):
-    r = ros.RosResource(stack, name, type=type_, properties=properties)
-    r.override_logical_id(name)
+    r = Resource(stack, name, {"Type": type_, "Properties": properties})
     if retain:
         r.add_override("DeletionPolicy", "Retain")
     return r
 
 
 def param(stack, name, **kwargs):
-    kwargs.setdefault("type", ros.RosParameterType.STRING)
-    p = ros.RosParameter(stack, name, **kwargs)
-    p.override_logical_id(name)
+    names = {
+        "default_value": "Default",
+        "allowed_pattern": "AllowedPattern",
+        "description": "Description",
+        "no_echo": "NoEcho",
+        "min_length": "MinLength",
+    }
+    stack["Parameters"][name] = {"Type": "String", **{names[k]: v for k, v in kwargs.items()}}
     return {"Ref": name}
 
 
@@ -114,8 +116,7 @@ def statement(actions, resources):
 
 
 def synth(outdir):
-    app = ros.App(outdir=str(outdir / "assembly"), auto_synth=False)
-    storage = ros.Stack(app, "TranscriptStorage")
+    storage = new_stack()
     bucket = param(storage, "BucketName", allowed_pattern="[a-z0-9][a-z0-9-]{1,61}[a-z0-9]")
     instance = param(
         storage, "InstanceName", allowed_pattern="[a-zA-Z][a-zA-Z0-9-]{1,14}[a-zA-Z0-9]"
@@ -168,10 +169,10 @@ def synth(outdir):
         retain=True,
     )
     table.add_override("DependsOn", ["Instance"])
-    ros.RosOutput(storage, "BucketOutput", value=bucket)
-    ros.RosOutput(storage, "InstanceOutput", value=instance)
+    output(storage, "BucketOutput", bucket)
+    output(storage, "InstanceOutput", instance)
 
-    stack = ros.Stack(app, "TranscriptApp")
+    stack = new_stack()
     param(stack, "Prefix", default_value="transcript", allowed_pattern="[a-z][a-z0-9-]{2,24}")
     bucket = param(stack, "BucketName")
     instance = param(stack, "InstanceName")
@@ -180,15 +181,6 @@ def synth(outdir):
     )
     token = param(stack, "PanelToken", no_echo=True, min_length=24)
     model_key = param(stack, "DashScopeKey", no_echo=True, min_length=1)
-    origin = param(stack, "AllowedOrigin", default_value="http://localhost:8787")
-    maximum = param(
-        stack,
-        "MaxActive",
-        type=ros.RosParameterType.NUMBER,
-        default_value=4,
-        min_value=1,
-        max_value=16,
-    )
     project = resource(
         stack,
         "Logs",
@@ -272,8 +264,6 @@ def synth(outdir):
         "TC_OTS_INSTANCE": instance,
         "TC_FLOW": sub("${Prefix}-parse"),
         "TC_PANEL_TOKEN": token,
-        "TC_ALLOWED_ORIGIN": origin,
-        "TC_MAX_ACTIVE": {"Fn::Join": ["", [maximum]]},
     }
     for name, role_resource, handler in [
         ("Api", api_role, "api"),
@@ -342,46 +332,11 @@ def synth(outdir):
         },
     )
     flow.add_override("DependsOn", ["Worker", "FlowRole"])
-    ros.RosOutput(stack, "ApiUrl", value={"Fn::GetAtt": [trigger.logical_id, "UrlInternet"]})
-    ros.RosOutput(stack, "FlowName", value=sub("${Prefix}-parse"))
+    output(stack, "ApiUrl", {"Fn::GetAtt": [trigger.logical_id, "UrlInternet"]})
+    output(stack, "FlowName", sub("${Prefix}-parse"))
 
-    # Optional hosted panel. A custom HTTPS domain avoids attachment-only HTML on FC default URLs.
-    domain_stack = ros.Stack(app, "TranscriptDomain")
-    domain = param(domain_stack, "DomainName")
-    function = param(domain_stack, "FunctionName")
-    certificate = param(domain_stack, "Certificate", no_echo=True)
-    private_key = param(domain_stack, "PrivateKey", no_echo=True)
-    resource(
-        domain_stack,
-        "Domain",
-        "ALIYUN::FC3::CustomDomain",
-        {
-            "DomainName": domain,
-            "Protocol": "HTTPS",
-            "AuthConfig": {"AuthType": "anonymous"},
-            "CertConfig": {
-                "CertName": "transcript",
-                "Certificate": certificate,
-                "PrivateKey": private_key,
-            },
-            "RouteConfig": {
-                "Routes": [
-                    {
-                        "Path": "/*",
-                        "FunctionName": function,
-                        "Qualifier": "LATEST",
-                        "Methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-                    }
-                ]
-            },
-        },
-    )
     outdir.mkdir(parents=True, exist_ok=True)
-    session = TemplateSession(outdir / "assembly")
-    for item in (storage, stack, domain_stack):
-        item.synthesize(session)
-        name = item.stack_name
-        template = json.loads((outdir / "assembly" / item.template_file).read_text())
+    for name, template in (("TranscriptStorage", storage), ("TranscriptApp", stack)):
         (outdir / f"{name}.json").write_text(json.dumps(template, indent=2), encoding="utf-8")
     (outdir / "workflow.example.json").write_text(
         json.dumps(

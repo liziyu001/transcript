@@ -132,7 +132,6 @@ def test_export_failure_preserves_paid_result(service):
 
 
 def test_active_lease_without_global_job_cap(service):
-    service.settings.max_active = 1
     a, b = new_job(service, "request-a"), new_job(service, "request-b")
     service.step(a["id"])
     service.step(b["id"])
@@ -219,7 +218,7 @@ def test_api_auth_and_fc_http_bridge(service):
             "Access-Control-Request-Headers": "authorization",
         },
     )
-    assert response.status_code == 200
+    assert response.status_code == 403
     event = {
         "requestContext": {"http": {"method": "GET", "path": "/api/audio"}},
         "headers": headers,
@@ -254,7 +253,7 @@ def test_fc_preflight_avoids_duplicate_gateway_headers(service, monkeypatch):
         },
     }
     response = handlers.api(event, object())
-    assert response["statusCode"] == 200
+    assert response["statusCode"] == 403
     assert not any(k.startswith("access-control-") for k in response["headers"])
     event["headers"]["Origin"] = "https://untrusted.example"
     assert handlers.api(event, object())["statusCode"] == 403

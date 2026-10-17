@@ -345,7 +345,7 @@ def test_legacy_concurrency_settings_do_not_limit_cloud_jobs(system):
         service.step(job["id"])
     assert all(service.require(job["id"])["state"] == "running" for job in jobs)
     assert service.provider.submit.call_count == 20
-    assert catalog.settings()["processing_concurrency"] == 0
+    assert "processing_concurrency" not in catalog.settings()
     assert service.records.list("slot")["items"] == []
 
 

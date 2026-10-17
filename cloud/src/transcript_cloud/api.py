@@ -1,12 +1,9 @@
 """Personal control panel API, hosted on FC (Lambda) or run locally for development."""
 
 import hmac
-from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
 from .models import AudioRegistration, Dismissal, NewJob, Recovery, Settings
 from .service import Service
@@ -29,15 +26,11 @@ def create_app(service=None, settings=None):
     settings = settings or Settings.from_env()
     service = service or make_service(settings)
     app = FastAPI(title="Transcript Cloud", docs_url=None, redoc_url=None, openapi_url=None)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[settings.allowed_origin],
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
-    )
 
     @app.middleware("http")
     async def headers(request, call_next):
+        if request.headers.get("origin"):
+            return JSONResponse({"detail": "Use the local Compose panel."}, status_code=403)
         response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -67,7 +60,6 @@ def create_app(service=None, settings=None):
         return {
             "region": settings.region,
             "bucket": settings.bucket,
-            "max_active": None,
         }
 
     @app.get("/api/audio", dependencies=auth)
@@ -110,17 +102,8 @@ def create_app(service=None, settings=None):
             raise HTTPException(404, "Output is not available")
         return {"url": service.artifacts.url(key, expires=900, download=True)}
 
-    static = Path(__file__).parent / "static"
-    app.mount("/static", StaticFiles(directory=static), name="static")
-
     @app.get("/")
     def index():
-        return FileResponse(static / "index.html")
+        return {"service": "transcript-api", "panel": "Run docker compose up locally."}
 
     return app
-
-
-def main():
-    import uvicorn
-
-    uvicorn.run(create_app(), host="127.0.0.1", port=8787)

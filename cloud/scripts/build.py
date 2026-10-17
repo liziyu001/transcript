@@ -11,6 +11,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def source_hash():
+    paths = [
+        ROOT / "pyproject.toml",
+        ROOT / "uv.lock",
+        ROOT / "infra/app.py",
+        ROOT / "scripts/build.py",
+    ]
+    paths += sorted(
+        p
+        for p in (ROOT / "src").rglob("*")
+        if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
+    )
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(path.relative_to(ROOT).as_posix().encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
 def run(*args, quiet=False):
     subprocess.run(
         list(args), cwd=ROOT.parent, check=True, stdout=subprocess.DEVNULL if quiet else None
@@ -75,6 +94,7 @@ def main():
     checksum = hashlib.sha256(temporary.read_bytes()).hexdigest()
     manifest = {
         "sha256": checksum,
+        "source_sha256": source_hash(),
         "file": str(temporary),
         "object_key": f"code/{checksum}.zip",
         "runtime": "python3.12",

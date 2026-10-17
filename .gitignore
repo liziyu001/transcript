@@ -54,3 +54,7 @@ cloud/deploy.local.json
 cloud/parameters.local.json
 .pytest_cache/
 .ruff_cache/
+cloud/.panel.env
+cloud/.panel.tmp
+cloud/.env.tmp
+cloud/.cache/
