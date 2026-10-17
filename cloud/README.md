@@ -393,7 +393,7 @@ Select resources and click **清理 OSS**, or open **清理 OSS 文件** in a re
  details/context menu. The default deletes only source audio, keeping transcript
  JSON and exported files available for download and re-export. Other choices remove
  all historical export attempts, all transcript results, or both audio and results.
- Every deletion requires explicit confirmation; resource records and local cache remain.
+ Every deletion requires explicit confirmation; resource records remain. Successfully uploaded local audio is automatically removed.
 
 Active or uncertain cloud jobs and unfinished local jobs block cleanup. Shared audio
  requires selecting every referencing resource (restore archived records first).
@@ -437,3 +437,14 @@ and panel. If nothing is available, or an OSS transfer fails, the request fails
 instead of returning a misleading partial archive. The local service writes the
 ZIP to temporary disk and removes it after delivery. Each batch is limited to
 512 MB of uncompressed result files; keep the page open until it downloads.
+
+
+### Local audio retention
+
+Compose Studio removes its per-item audio directory after every part is uploaded,
+verified by registration, and linked to the cloud resource. The uploaded checkpoint
+is saved before deletion, so replay uses OSS IDs without needing the local files.
+Failed/incomplete uploads retain their files for retry; logs, small manifests and
+checkpoints remain. On startup, completed upload checkpoints are swept to clean old
+caches or recover interrupted deletion. Only Studio-owned `items/<id>/audio` trees
+are removed; files supplied to the standalone CLI are unaffected.

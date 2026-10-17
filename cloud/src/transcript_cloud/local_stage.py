@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .catalog import ImportBatch, collection_url
 from .ingest import atomic_json, upload
+from .local_cache import remove_uploaded_audio
 from .local_client import CloudClient, CloudError
 from .local_store import LocalStore
 
@@ -83,7 +84,7 @@ def execute(store, job, item, cloud, download=None, uploader=None):
         return {"message": "视频信息已保存到云端。"}
 
     if kind in {"download", "pipeline"} and not saved.get("uploaded"):
-        if resource["audio"] and not job["force"]:
+        if resource["audio"] and not job["force"] and not saved.get("sources"):
             save(audio_ids=[a["id"] for a in resource["audio"]], uploaded=True)
         else:
             from bilibili_audio_scraper import AudioScraper, ScraperConfig
@@ -132,6 +133,9 @@ def execute(store, job, item, cloud, download=None, uploader=None):
             print("上传完成，正在关联云端资源记录…", flush=True)
             cloud.request("PATCH", f"/studio/resources/{rid}", {"audio_ids": audio_ids})
             save(audio_ids=audio_ids, uploaded=True)
+    if kind in {"download", "pipeline"} and saved.get("uploaded"):
+        if remove_uploaded_audio(root):
+            print("OSS 上传与资源关联已确认，本地音频已删除。", flush=True)
     if kind == "download":
         return {"message": "音频已上传 OSS。", "audio_ids": saved["audio_ids"]}
     audio_ids = (

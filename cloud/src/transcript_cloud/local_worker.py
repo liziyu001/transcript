@@ -9,6 +9,7 @@ import threading
 import time
 
 from .catalog import now
+from .local_cache import sweep_uploaded_audio
 
 
 class Worker:
@@ -41,6 +42,7 @@ class Worker:
             self.lock.close()
             raise RuntimeError("此数据目录已有本地工作进程运行。") from None
         self.store.recover()
+        sweep_uploaded_audio(self.store)
         self.thread.start()
 
     def terminate(self):
