@@ -101,7 +101,7 @@ def role(stack, name, principal, statements):
             },
             "Policies": [
                 {
-                    "PolicyName": "transcript",
+                    "PolicyName": sub("${Prefix}-" + name.lower() + "-policy"),
                     "PolicyDocument": {"Version": "1", "Statement": statements},
                 }
             ],
@@ -130,7 +130,7 @@ def synth(outdir):
             "StorageClass": "Standard",
             "RedundancyType": "LRS",
             "LifecycleConfiguration": {
-                "Rules": [
+                "Rule": [
                     {
                         "ID": "abort-incomplete-uploads",
                         "Prefix": "audio/",
@@ -142,7 +142,7 @@ def synth(outdir):
         },
         retain=True,
     )
-    ots = resource(
+    resource(
         storage,
         "Instance",
         "ALIYUN::OTS::Instance",
@@ -158,7 +158,7 @@ def synth(outdir):
         "Records",
         "ALIYUN::OTS::Table",
         {
-            "InstanceName": instance,
+            "InstanceName": {"Fn::GetAtt": ["Instance", "InstanceName"]},
             "TableName": "transcript_records",
             "TimeToLive": -1,
             "MaxVersions": 1,
@@ -167,7 +167,7 @@ def synth(outdir):
         },
         retain=True,
     )
-    table.add_depends_on(ots)
+    table.add_override("DependsOn", ["Instance"])
     ros.RosOutput(storage, "BucketOutput", value=bucket)
     ros.RosOutput(storage, "InstanceOutput", value=instance)
 
@@ -198,7 +198,7 @@ def synth(outdir):
             "Description": "Transcript function logs",
         },
     )
-    logstore = resource(
+    resource(
         stack,
         "Logstore",
         "ALIYUN::SLS::Logstore",
@@ -299,7 +299,7 @@ def synth(outdir):
                 },
             },
         )
-        function_resource.add_depends_on(logstore)
+        function_resource.add_override("DependsOn", ["Logstore"])
     trigger = resource(
         stack,
         "Http",

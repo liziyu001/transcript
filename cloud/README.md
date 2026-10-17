@@ -104,6 +104,11 @@ Install/configure the Alibaba CLI when ready if you want it for account inspecti
 The provided deployment script uses official Python SDKs, so the CLI is optional.
 The portable credential configuration for both the scripts and local uploader is:
 
+If you saved credentials in ignored `cloud/.env.local`, load it explicitly on
+every deployment command: `uv run --env-file cloud/.env.local --project cloud --no-sync python ...`.
+Plain `uv run` does not load that file. This also loads `TC_PANEL_TOKEN` and
+`TC_DASHSCOPE_KEY` for the application deployment.
+
 ```powershell
 $env:ALIBABA_CLOUD_ACCESS_KEY_ID = 'your-RAM-access-key-id'
 $env:ALIBABA_CLOUD_ACCESS_KEY_SECRET = 'your-RAM-access-key-secret'
@@ -124,6 +129,17 @@ reference specifies All Resource; that role receives only this one CloudFlow act
    `TC_DASHSCOPE_KEY` to the Beijing model key. Generate a token with
    `uv run --project cloud --no-sync python -c "import secrets; print(secrets.token_urlsafe(32))"`.
 3. Synthesize and build with the commands above.
+   If you already created the bucket, set `"existing_bucket": true` in
+   `deploy.local.json`. The script verifies access and region, then leaves that
+   bucket outside ROS management; its existing settings and lifecycle are retained.
+   Keep this setting unchanged on later storage stack updates.
+   Use an instance name such as `transcript-home` (at most 16 characters).
+
+   Run `uv run --project cloud --no-sync python cloud/scripts/deploy.py check --execute`
+   to check local secret presence and perform a read-only ROS stack/credential check.
+   Variables set in another terminal are not inherited by this terminal or Codex.
+   Deployment failures now include the SDK error code and request ID with known
+   credentials redacted.
 4. Deploy storage, wait for completion, upload the code ZIP, then deploy the application:
 
 ```powershell
