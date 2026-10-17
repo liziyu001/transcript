@@ -334,22 +334,19 @@ def test_dry_run_never_invokes_scraper_uploader_or_cloud(system, tmp_path):
     cloud.request.assert_not_called()
 
 
-def test_lower_concurrency_drains_old_slots(system):
+def test_legacy_concurrency_settings_do_not_limit_cloud_jobs(system):
     service, catalog, _ = system
     audio = register(service)
-    jobs = [
-        service.create(NewJob(audio_id=audio["id"], request_id=f"request-{n}")) for n in range(5)
-    ]
-    for j in jobs[:4]:
-        service.step(j["id"])
     catalog.save_settings(StudioSettings(processing_concurrency=1))
-    service.step(jobs[0]["id"])
-    service.step(jobs[4]["id"])
-    assert service.require(jobs[4]["id"])["state"] == "queued"
-    for j in jobs[1:4]:
-        service.step(j["id"])
-    service.step(jobs[4]["id"])
-    assert service.require(jobs[4]["id"])["state"] == "running"
+    jobs = [
+        service.create(NewJob(audio_id=audio["id"], request_id=f"request-{n}")) for n in range(20)
+    ]
+    for job in jobs:
+        service.step(job["id"])
+    assert all(service.require(job["id"])["state"] == "running" for job in jobs)
+    assert service.provider.submit.call_count == 20
+    assert catalog.settings()["processing_concurrency"] == 0
+    assert service.records.list("slot")["items"] == []
 
 
 def test_real_worker_process_dry_run_and_single_instance_lock(tmp_path, monkeypatch):

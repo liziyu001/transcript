@@ -60,7 +60,7 @@ function draw() {
     } else if (job.state !== "dismissed") {
       action("Resume stalled workflow", () => api(`/api/jobs/${job.id}/resume`, {}));
     }
-    if (["failed", "needs_attention"].includes(job.state)) action("Dismiss / release slot", async () => {
+    if (["failed", "needs_attention"].includes(job.state)) action("Dismiss after checking", async () => {
       if (confirm("Have you checked the provider console and confirmed this task is no longer running? Dismissing releases its concurrency slot; it does not cancel or refund a provider task.")) await api(`/api/jobs/${job.id}/dismiss`, { checked_provider: true });
     });
     card.append(info, actions); $("jobs").append(card);
@@ -80,7 +80,7 @@ $("connect").onsubmit = async (event) => {
     if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname))) throw new Error("Use HTTPS for the cloud API.");
     endpoint = url.href.replace(/\/$/, ""); token = $("token").value;
     const config = await api("/api/config"); localStorage.setItem("transcript-endpoint", endpoint);
-    $("connection").textContent = `${config.region} · ${config.max_active} active slots`;
+    $("connection").textContent = `${config.region} · no application concurrency limit`;
     $("refresh").disabled = $("start").disabled = false; message("Connected. Select uploaded recordings to start recognition.");
     clearInterval(timer); await refresh(); timer = setInterval(() => { if (!document.hidden) refresh(); }, 15000);
   } catch (e) { token = ""; clearInterval(timer); message(e.message, true); }

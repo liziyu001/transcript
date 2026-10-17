@@ -203,51 +203,6 @@ class Service:
         job["updated"] = self.clock()
         return self.records.put("job", job["id"], job, job["revision"])
 
-    def slot(self, job):
-        """Bound remote ASR jobs, not just simultaneous function invocations."""
-        preferences = self.records.get("settings", "studio")
-        maximum = (preferences or {}).get("processing_concurrency", self.settings.max_active)
-        # Search all existing slots first, including slots above a lowered limit.
-        for number in range(16):
-            owned = self.records.get("slot", str(number))
-            if owned and owned["job_id"] == job["id"]:
-                return True
-        active = 0
-        for number in range(16):
-            occupied = self.records.get("slot", str(number))
-            owner = self.records.get("job", occupied["job_id"]) if occupied else None
-            if owner and (
-                owner["state"] not in {"completed", "failed", "dismissed"}
-                or (owner.get("task_id") and not owner.get("remote_done"))
-            ):
-                if number >= maximum:
-                    # Drain slots above a lowered limit before admitting new work.
-                    return False
-                active += 1
-        if active >= maximum:
-            return False
-        for number in range(maximum):
-            key = str(number)
-            slot = self.records.get("slot", key)
-            if slot and slot["job_id"] == job["id"]:
-                return True
-            if slot:
-                owner = self.records.get("job", slot["job_id"])
-                # Unknown submissions and timed-out remote jobs retain their slot.
-                if owner and (
-                    owner["state"] not in {"completed", "failed", "dismissed"}
-                    or (owner.get("task_id") and not owner.get("remote_done"))
-                ):
-                    continue
-            try:
-                self.records.put(
-                    "slot", key, {"job_id": job["id"]}, slot["revision"] if slot else None
-                )
-                return True
-            except Conflict:
-                continue
-        return False
-
     def step(self, job_id):
         job = self.require(job_id)
         if job["state"] in TERMINAL:
@@ -271,10 +226,6 @@ class Service:
         try:
             audio = self.records.get("audio", job["audio_id"])
             if job["state"] == "queued":
-                if not self.slot(job):
-                    job["lease_until"] = 0
-                    self.save(job)
-                    return {"job_id": job_id, "done": False}
                 # Generate URL before entering the ambiguous submission window.
                 url = self.artifacts.url(audio["key"], expires=86400)
                 job["state"] = "submitting"

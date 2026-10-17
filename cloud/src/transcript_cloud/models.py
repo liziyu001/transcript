@@ -51,7 +51,8 @@ class StudioSettings(BaseModel):
     downloader: DownloadOptions = Field(default_factory=DownloadOptions)
     parser: ParseOptions = Field(default_factory=ParseOptions)
     output: OutputOptions = Field(default_factory=OutputOptions)
-    processing_concurrency: int = Field(default=4, ge=1, le=16)
+    # Compatibility with saved configurations; no longer limits cloud jobs.
+    processing_concurrency: int = Field(default=0, ge=0, le=16)
 
 
 NewJob.model_rebuild()

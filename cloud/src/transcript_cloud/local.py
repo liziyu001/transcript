@@ -273,8 +273,8 @@ def create_app(data_dir=None, cloud=None, start_worker=True):
                 else None,
             )
         result = store.control(jid, action)
-        if action == "cancel" and worker.active and worker.active[0] == jid:
-            worker.terminate()
+        if action == "cancel":
+            worker.terminate(jid)
         return result
 
     @app.get("/api/items/{iid}/log")

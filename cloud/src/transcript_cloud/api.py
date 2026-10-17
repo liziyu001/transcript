@@ -67,7 +67,7 @@ def create_app(service=None, settings=None):
         return {
             "region": settings.region,
             "bucket": settings.bucket,
-            "max_active": settings.max_active,
+            "max_active": None,
         }
 
     @app.get("/api/audio", dependencies=auth)

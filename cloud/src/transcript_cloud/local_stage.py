@@ -204,6 +204,8 @@ def main():
     store = LocalStore(sys.argv[1])
     job = store.job(sys.argv[2])
     item = next(i for i in job["items"] if i["id"] == sys.argv[3])
+    if "--upload-only" in sys.argv[4:] and job["kind"] == "pipeline":
+        job = {**job, "kind": "download"}
     try:
         result = execute(store, job, item, CloudClient())
         atomic_json(store.root / "items" / item["id"] / "result.json", result)

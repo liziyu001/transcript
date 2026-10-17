@@ -74,8 +74,8 @@ Existing audio/recognition is reused unless **重新处理已有结果** is sele
 option explicitly creates fresh paid recognition for parse/pipeline jobs. Retry of
 the same local item retains its request identity, including after a lost HTTP response.
 Cloud defaults are shared by Studio instances; queued jobs retain their model/output
-snapshots. Concurrency changes apply to new admissions, and lowering the limit drains
-older slots first. Model credentials and infrastructure settings remain deployment
+snapshots. Only download/upload is sequential; parsing, export and metadata tasks
+are dispatched independently, without an application cloud-job cap. Model credentials and infrastructure settings remain deployment
 configuration, separate from the editable processing defaults.
 
 Filtering, sorting, selection, and page navigation operate over the complete cloud
@@ -113,7 +113,7 @@ These are directly provisioned functions, so the application-center page may be 
 | Audio, raw results, exports, function ZIP | OSS | S3 |
 | Short worker invocations and HTTP API | Function Compute 3 | Lambda |
 | Durable wait/check loop | CloudFlow Standard | Step Functions Standard |
-| Audio metadata, jobs, concurrency slots | Tablestore | DynamoDB |
+| Audio metadata and jobs | Tablestore | DynamoDB |
 | Seven-day function logs | Simple Log Service | CloudWatch Logs |
 | Roles and temporary credentials | RAM / STS | IAM / STS |
 | Infrastructure | ROS / Python ROS CDK | CloudFormation / CDK |
@@ -130,9 +130,9 @@ on registered cloud jobs. The panel does not remotely start the local scraper.
 
 CloudFlow invokes a short worker, waits 60 seconds, and invokes it again. Workers
 persist task IDs before waiting. Tablestore conditional writes prevent two workers
-from advancing the same job concurrently. Four durable slots limit **remote model
-jobs**, independently of function invocation concurrency. The default wait limit is
-24 hours per job, including time queued for a slot.
+from advancing the same job concurrently. There is no application-wide cap on remote
+model jobs. CloudFlow/FC/provider quotas still apply. The default wait limit is
+24 hours per job. Legacy concurrency settings and slot records are ignored.
 
 ## Local setup and checks
 
@@ -335,9 +335,9 @@ duration before upload. Automatic splitting is not included.
   **Resume stalled workflow** after the five-minute worker lease expires.
 - A crash or timeout during submission has an uncertain outcome. It becomes
   **needs attention** and never automatically resubmits. Recover the task ID from
-  DashScope, or verify the remote state and explicitly **Dismiss / release slot**.
-- Dismissing does not cancel or refund a provider task. Unresolved jobs retain a
-  concurrency slot until recovered or dismissed. A new panel submission is explicitly
+  DashScope, or verify the remote state and explicitly **Dismiss after checking**.
+- Dismissing does not cancel or refund a provider task. Unresolved jobs require
+  recovery or dismissal before safe cleanup, but do not block unrelated jobs. A new panel submission is explicitly
   new paid work; retrying a provider-declared failed task does not create a replacement.
 - Raw provider results are copied to your OSS bucket promptly. Export revisions
   are immutable by attempt number. Failed re-export leaves the old output keys usable.
@@ -358,7 +358,7 @@ It binds to `127.0.0.1:8787`; do not run it alongside the Node preview on that p
 
 Use one short audio file: upload/register it, start one job, close the panel, and
 return to verify raw JSON plus TXT/SRT/VTT/JSON. Re-export and confirm the provider
-task ID stays unchanged. Then test a second recording with concurrency set to one.
+task ID stays unchanged. Then submit parsing for an uploaded recording while another local download is active.
 This small test checks live RAM policies, FC imports, CloudFlow FDL, OSS URL access,
 and the real provider response. Offline tests cannot establish those account-level
 contracts. No large end-to-end suite is required.
@@ -370,7 +370,7 @@ src/transcript_cloud/models.py      API/config contracts
 src/transcript_cloud/provider.py    API-only recognition and result normalization
 src/transcript_cloud/exporter.py    Pure TXT/SRT/VTT/JSON rendering
 src/transcript_cloud/storage.py     OSS, Tablestore, CloudFlow SDK adapters
-src/transcript_cloud/service.py     Job state, leases, concurrency and recovery
+src/transcript_cloud/service.py     Job state, leases and recovery
 src/transcript_cloud/handlers.py    FC worker and HTTP-to-ASGI adapter
 src/transcript_cloud/api.py         Authenticated API and static panel
 src/transcript_cloud/ingest.py      Local downloader/uploader CLI
@@ -448,3 +448,15 @@ Failed/incomplete uploads retain their files for retry; logs, small manifests an
 checkpoints remain. On startup, completed upload checkpoints are swept to clean old
 caches or recover interrupted deletion. Only Studio-owned `items/<id>/audio` trees
 are removed; files supplied to the standalone CLI are unaffected.
+
+
+### Independent cloud dispatch
+
+Only real download/upload stages share a single transfer lane. Parse, export, metadata
+and collection discovery use independent short-lived local processes; they do not wait
+for another video's download or cloud completion. Pipeline uploads hand off to a
+separate dispatch process before the next transfer starts. Each part starts its durable
+CloudFlow execution immediately after submission; the local process does not wait
+for recognition. Same-resource submissions serialize until dispatch finishes to avoid
+duplicate work; remote execution does not hold that lock. Pause/cancel remain scoped
+to the selected local batch and never cancel already-submitted cloud jobs.

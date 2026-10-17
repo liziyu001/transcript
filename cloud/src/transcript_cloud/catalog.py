@@ -104,10 +104,11 @@ class Catalog:
 
     def settings(self):
         saved = self.records.get("settings", "studio") or {}
-        defaults = StudioSettings(processing_concurrency=self.service.settings.max_active)
+        defaults = StudioSettings()
         return {
             **defaults.model_dump(),
             **{k: v for k, v in saved.items() if k in StudioSettings.model_fields},
+            "processing_concurrency": 0,
         }
 
     def save_settings(self, body):

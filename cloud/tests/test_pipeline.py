@@ -131,15 +131,14 @@ def test_export_failure_preserves_paid_result(service):
     service.provider.submit.assert_called_once()
 
 
-def test_active_lease_and_global_slots(service):
+def test_active_lease_without_global_job_cap(service):
     service.settings.max_active = 1
     a, b = new_job(service, "request-a"), new_job(service, "request-b")
     service.step(a["id"])
     service.step(b["id"])
-    assert service.require(b["id"])["state"] == "queued"
-    service.provider.submit.assert_called_once()
+    assert service.require(b["id"])["state"] == "running"
+    assert service.provider.submit.call_count == 2
     service.step(a["id"])
-    service.step(b["id"])
     assert service.provider.submit.call_count == 2
     b = service.require(b["id"])
     b["lease_until"] = 1100
@@ -161,7 +160,7 @@ def test_workflow_dispatch_failure_is_replayable(service):
     service.provider.submit.assert_called_once()
 
 
-def test_timeout_keeps_remote_task_and_slot(service):
+def test_timeout_keeps_remote_task(service):
     job = new_job(service)
     service.step(job["id"])
     service.clock = lambda: 100000
