@@ -6,8 +6,15 @@ DashScope result contract and subtitle exporters; it does not install or import 
 
 Deployment is explicit through `--execute`. The Beijing deployment has been verified
 with authenticated API requests, browser CORS, a synthetic CloudFlow export, and signed
-downloads of JSON/TXT/SRT/VTT. No paid recognition was used for those checks; verify the
-model submission/polling path with one short recording before a large batch.
+downloads of JSON/TXT/SRT/VTT. On 2026-10-17 the owner also confirmed a successful
+real transcription after uploading audio, completing the initial end-to-end check.
+
+To find these resources in the Alibaba consoles, select **华北2（北京） / cn-beijing**.
+In Function Compute **3.0**, open **云函数 → 函数列表** and look for
+`transcript-api` and `transcript-worker`. In CloudFlow, look for the Standard FDL
+workflow `transcript-parse`. Clear resource-group and name filters, and ensure the
+console login belongs to the same cloud account as your deployment credentials.
+These are directly provisioned functions, so the application-center page may be empty.
 
 ## Architecture
 
