@@ -4,6 +4,96 @@ Personal transcription with **local scraping/upload** and **Alibaba Cloud proces
 The original local studio on `master` remains independent. This package extracts the
 DashScope result contract and subtitle exporters; it does not install or import Whisper.
 
+## Chinese Compose control panel
+
+The cloud Studio uses the original Compose website's Chinese interface, layout,
+resource table, sorting, pagination, settings, dialogs, and job controls. Collections,
+memberships, video metadata, and defaults live in Tablestore; audio and results live
+in OSS. Local SQLite stores only the local queue, configuration snapshots, and recovery
+state. The browser never receives the personal token or uploader credentials.
+
+**Upgrade the deployed API and worker from this checkout before starting Studio.**
+The new `/api/studio/*` catalog endpoints require the updated application ZIP. Reuse
+the existing application stack and storage; no new bucket, table, or storage migration
+is required. Follow the build/upload/application-update commands below, using the
+existing application stack ID. Old CLI upload records are included automatically;
+old submission request IDs remain compatible. Do not create a second stack.
+
+Set these values in ignored `cloud/.env.local` (see `.env.example`):
+
+```dotenv
+TC_API_URL=https://your-existing-api-endpoint
+TC_PANEL_TOKEN=your-existing-personal-token
+ALIBABA_CLOUD_ACCESS_KEY_ID=your-local-uploader-key
+ALIBABA_CLOUD_ACCESS_KEY_SECRET=your-local-uploader-secret
+# ALIBABA_CLOUD_SECURITY_TOKEN=...  # only for temporary credentials
+```
+
+Then run from the repository root:
+
+```powershell
+docker compose -f compose.cloud.yaml up -d --build
+# Open http://localhost:8787
+docker compose -f compose.cloud.yaml logs -f cloud-studio
+docker compose -f compose.cloud.yaml down
+```
+
+Set `CLOUD_STUDIO_PORT` to change the host port. The separate `cloud-studio-data`
+volume retains local downloads, upload checkpoints, and queue history. The image
+includes FFmpeg and the standalone scraper, and installs no Whisper/model packages.
+It binds the published port to localhost. Run one Studio worker per data volume;
+a process lock prevents competing workers. Stopping Compose retains the volume.
+
+Everyday workflow:
+
+1. **添加资源**: paste video links or import a series/season. Collection discovery
+   runs on this computer, then writes titles/durations and membership to the cloud.
+   The sidebar and resource list are rendered from cloud metadata. A collection can
+   be synced again, renamed, or removed; removing membership retains recordings.
+2. **下载并上传**: download all audio parts locally, resume multipart uploads to
+   OSS, verify/register them, then attach the complete part list to the cloud record.
+   A failed upload retains checkpoints. Local cached audio remains in the data volume.
+3. **解析**: submit registered OSS audio to the existing durable cloud workflow.
+   **完整流程** performs download/upload first and submits cloud work before moving
+   on to the next resource. Cloud jobs continue when this computer is turned off.
+4. **导出**: create a new export revision from saved recognition results. Format
+   selection and TXT timestamps are snapshotted per job. This does not call ASR again.
+5. Open a resource for audio playback, result preview, and signed OSS downloads.
+   Use **刷新文件列表** to refresh an open detail dialog without disrupting playback.
+   **编辑资源与合集** changes the title and memberships in the cloud. Right-click
+   a row to run stages or archive its record. Archiving retains OSS objects and cloud
+   job history; reimporting its video link restores the record.
+6. **任务队列** shows local batches and independent cloud tasks. Local pause waits
+   for the current item's stage to finish; cancel terminates the local process tree.
+   Already-submitted cloud tasks keep running. Following a restart, interrupted local
+   batches are paused for explicit resume; their completed parts and request IDs are
+   retained. Use the cloud task's retry/recovery controls for provider failures or
+   uncertain submissions before retrying the local batch.
+
+Existing audio/recognition is reused unless **重新处理已有结果** is selected. That
+option explicitly creates fresh paid recognition for parse/pipeline jobs. Retry of
+the same local item retains its request identity, including after a lost HTTP response.
+Cloud defaults are shared by Studio instances; queued jobs retain their model/output
+snapshots. Concurrency changes apply to new admissions, and lowering the limit drains
+older slots first. Model credentials and infrastructure settings remain deployment
+configuration, separate from the editable processing defaults.
+
+Filtering, sorting, selection, and page navigation operate over the complete cloud
+catalog, not just the first Tablestore page. This personal-library implementation reads
+all catalog/job pages and refreshes every five seconds; it is not an indexed search
+service for very large libraries. Discovery is synced in replayable batches of 100;
+if interrupted during synchronization, already-synced records remain visible and resume
+adds the remainder. Empty collections produce no resource records.
+
+For development without Docker, after installing the `ingest` and `dev` extras:
+
+```powershell
+uv run --env-file cloud/.env.local --project cloud --no-sync transcript-cloud-studio
+```
+
+The older `npm run cloud:panel` command below serves the lightweight, cloud-only
+legacy panel. It does not start the new Studio or its local ingestion worker.
+
 Deployment is explicit through `--execute`. The Beijing deployment has been verified
 with authenticated API requests, browser CORS, a synthetic CloudFlow export, and signed
 downloads of JSON/TXT/SRT/VTT. On 2026-10-17 the owner also confirmed a successful

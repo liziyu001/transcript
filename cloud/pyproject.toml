@@ -34,6 +34,7 @@ bilibili-audio-scraper = { path = "../audio-scraper", editable = true }
 [project.scripts]
 transcript-ingest = "transcript_cloud.ingest:main"
 transcript-cloud = "transcript_cloud.api:main"
+transcript-cloud-studio = "transcript_cloud.local:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -44,3 +45,6 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["transcript_cloud"]

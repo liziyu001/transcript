@@ -16,3 +16,8 @@ node_modules
 *.log
 .env
 .env.*
+**/.env
+**/.env.*
+cloud/deploy.local.json
+cloud/.artifacts
+cloud/ros.out

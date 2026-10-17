@@ -36,7 +36,14 @@ class Service:
         audio = self.records.get("audio", request.audio_id)
         if not audio:
             raise ValueError("Audio is not registered")
-        identity = json.dumps(request.model_dump(), sort_keys=True)
+        # Keep the pre-Studio request identity for default output settings so old CLI
+        # checkpoints remain idempotent across deployment of the new API.
+        from .models import OutputOptions
+
+        payload = request.model_dump()
+        if request.output == OutputOptions():
+            payload.pop("output")
+        identity = json.dumps(payload, sort_keys=True)
         job_id = hashlib.sha256(identity.encode()).hexdigest()[:32]
         job = self.records.get("job", job_id)
         if not job:
@@ -48,6 +55,7 @@ class Service:
                         "audio_id": request.audio_id,
                         "title": audio["title"],
                         "options": request.options.model_dump(),
+                        "output": request.output.model_dump(),
                         "state": "queued",
                         "attempt": 1,
                         "created": self.clock(),
@@ -107,10 +115,12 @@ class Service:
         self.flows.start(job)
         return job
 
-    def reexport(self, job_id):
+    def reexport(self, job_id, output=None):
         job = self.require(job_id)
         if job["state"] != "completed" or not job.get("raw_key"):
             raise ValueError("Only completed jobs with saved raw results can be re-exported")
+        if output is not None:
+            job["output"] = output
         job.update(
             state="exporting",
             attempt=job["attempt"] + 1,
@@ -146,7 +156,28 @@ class Service:
 
     def slot(self, job):
         """Bound remote ASR jobs, not just simultaneous function invocations."""
-        for number in range(self.settings.max_active):
+        preferences = self.records.get("settings", "studio")
+        maximum = (preferences or {}).get("processing_concurrency", self.settings.max_active)
+        # Search all existing slots first, including slots above a lowered limit.
+        for number in range(16):
+            owned = self.records.get("slot", str(number))
+            if owned and owned["job_id"] == job["id"]:
+                return True
+        active = 0
+        for number in range(16):
+            occupied = self.records.get("slot", str(number))
+            owner = self.records.get("job", occupied["job_id"]) if occupied else None
+            if owner and (
+                owner["state"] not in {"completed", "failed", "dismissed"}
+                or (owner.get("task_id") and not owner.get("remote_done"))
+            ):
+                if number >= maximum:
+                    # Drain slots above a lowered limit before admitting new work.
+                    return False
+                active += 1
+        if active >= maximum:
+            return False
+        for number in range(maximum):
             key = str(number)
             slot = self.records.get("slot", key)
             if slot and slot["job_id"] == job["id"]:
@@ -225,7 +256,10 @@ class Service:
                 document["parser"] = job["options"]
                 outputs = {}
                 prefix = f"results/{job_id}/exports/{job['attempt']}"
-                for fmt, content in render(document).items():
+                output = job.get("output", {})
+                for fmt, content in render(document, output.get("timestamps", False)).items():
+                    if fmt not in output.get("formats", ["txt", "srt", "vtt", "json"]):
+                        continue
                     key = f"{prefix}/transcript.{fmt}"
                     self.artifacts.put(
                         key,

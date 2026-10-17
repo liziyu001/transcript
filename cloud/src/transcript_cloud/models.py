@@ -29,6 +29,32 @@ class NewJob(BaseModel):
     options: ParseOptions = Field(default_factory=ParseOptions)
     # A new request ID explicitly requests a new paid recognition; retries reuse this ID.
     request_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{8,80}$")
+    output: "OutputOptions" = Field(default_factory=lambda: OutputOptions())
+
+
+class OutputOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    formats: list[Literal["txt", "srt", "vtt", "json"]] = Field(
+        default_factory=lambda: ["txt", "srt", "vtt", "json"], min_length=1, max_length=4
+    )
+    timestamps: bool = False
+
+
+class DownloadOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    timeout: int = Field(default=60, ge=5, le=600)
+    retries: int = Field(default=3, ge=0, le=20)
+
+
+class StudioSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    downloader: DownloadOptions = Field(default_factory=DownloadOptions)
+    parser: ParseOptions = Field(default_factory=ParseOptions)
+    output: OutputOptions = Field(default_factory=OutputOptions)
+    processing_concurrency: int = Field(default=4, ge=1, le=16)
+
+
+NewJob.model_rebuild()
 
 
 class Recovery(BaseModel):

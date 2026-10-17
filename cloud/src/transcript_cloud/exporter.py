@@ -11,10 +11,13 @@ def timestamp(seconds, separator="."):
     return f"{hours:02}:{minutes:02}:{seconds:02}{separator}{milliseconds:03}"
 
 
-def render(document):
+def render(document, timestamps=False):
     outputs = {
         "json": json.dumps(document, ensure_ascii=False, indent=2),
-        "txt": "\n".join(s["text"] for s in document["segments"]),
+        "txt": "\n".join(
+            (f"[{timestamp(s['start'])}] " if timestamps else "") + s["text"]
+            for s in document["segments"]
+        ),
     }
     for fmt in ("srt", "vtt"):
         cues = []

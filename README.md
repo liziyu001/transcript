@@ -7,6 +7,12 @@ The working local application remains on `master`. See the cloud README for its
 separate `uv` environment and deployment sequence; the Docker instructions below
 describe the original local application.
 
+The cloud application now also has a Chinese Compose Studio using the same interface:
+`docker compose -f compose.cloud.yaml up -d --build` (port 8787). It reads cloud
+collections, downloads/uploads locally, and parses in Alibaba Cloud with audio/results
+in OSS. Update the deployed cloud API first and configure `cloud/.env.local`; see the
+[cloud Studio setup](cloud/README.md#chinese-compose-control-panel).
+
 A local resource library and job-control website for Bilibili audio and transcripts.
 The existing command-line tools remain available below.
 

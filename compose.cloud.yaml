@@ -1,0 +1,25 @@
+services:
+  cloud-studio:
+    build:
+      context: .
+      dockerfile: cloud/Dockerfile
+    ports:
+      - "127.0.0.1:${CLOUD_STUDIO_PORT:-8787}:8787"
+    env_file:
+      - ./cloud/.env.local
+    environment:
+      TC_LOCAL_DATA_DIR: /data
+      HOST: 0.0.0.0
+      PORT: 8787
+    volumes:
+      - cloud-studio-data:/data
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 75s
+    healthcheck:
+      test: ["CMD", "/app/cloud/.venv/bin/python", "-c", "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8787/api/health',timeout=5))['worker']"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+volumes:
+  cloud-studio-data:

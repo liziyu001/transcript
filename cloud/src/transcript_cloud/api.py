@@ -32,7 +32,7 @@ def create_app(service=None, settings=None):
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.allowed_origin],
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
     )
 
@@ -58,6 +58,9 @@ def create_app(service=None, settings=None):
             raise HTTPException(401, "Enter your personal access token")
 
     auth = [Depends(authenticated)]
+    from .catalog import install_routes
+
+    install_routes(app, service, auth)
 
     @app.get("/api/config", dependencies=auth)
     def config():
