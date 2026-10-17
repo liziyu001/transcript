@@ -10,6 +10,7 @@ from unittest.mock import Mock
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+
 from transcript_cloud.api import create_app
 from transcript_cloud.exporter import render
 from transcript_cloud.handlers import invoke_asgi
@@ -238,3 +239,23 @@ def test_package_has_no_local_model_imports():
         text = path.read_text(encoding="utf-8")
         assert "import faster_whisper" not in text
         assert "from bilibili_transcript" not in text
+
+
+def test_fc_preflight_avoids_duplicate_gateway_headers(service, monkeypatch):
+    import transcript_cloud.handlers as handlers
+
+    monkeypatch.setattr(handlers.Settings, "from_env", lambda: service.settings)
+    monkeypatch.setattr(handlers, "make_service", lambda *_: service)
+    event = {
+        "requestContext": {"http": {"method": "OPTIONS", "path": "/api/jobs"}},
+        "headers": {
+            "Origin": "http://localhost:8787",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    }
+    response = handlers.api(event, object())
+    assert response["statusCode"] == 200
+    assert not any(k.startswith("access-control-") for k in response["headers"])
+    event["headers"]["Origin"] = "https://untrusted.example"
+    assert handlers.api(event, object())["statusCode"] == 403

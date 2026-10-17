@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 import tablestore as ots
+
 from transcript_cloud.ingest import upload
 from transcript_cloud.models import AudioRegistration, Settings
 from transcript_cloud.storage import Artifacts, Conflict, Records
@@ -14,6 +15,17 @@ from transcript_cloud.storage import Artifacts, Conflict, Records
 
 def settings():
     return Settings(bucket="test", ots_instance="test", flow="test", panel_token="x" * 32)
+
+
+def test_python312_context_uses_runtime_environment(monkeypatch):
+    from transcript_cloud.storage import credentials, oss_auth
+
+    monkeypatch.setenv("ALIBABA_CLOUD_ACCESS_KEY_ID", "test-runtime-id")
+    monkeypatch.setenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET", "test-runtime-secret")
+    monkeypatch.setenv("ALIBABA_CLOUD_SECURITY_TOKEN", "test-runtime-token")
+    context = SimpleNamespace(request_id="invocation")
+    assert credentials(context) == ("test-runtime-id", "test-runtime-secret", "test-runtime-token")
+    assert oss_auth(context) is not None
 
 
 def test_tablestore_revision_and_pagination():

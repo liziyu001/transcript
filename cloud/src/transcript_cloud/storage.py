@@ -1,6 +1,15 @@
 """OSS (S3) artifacts and conditional Tablestore (DynamoDB) job records."""
 
 import json
+from functools import lru_cache
+
+
+@lru_cache(maxsize=1)
+def credential_client():
+    """Reuse the SDK provider and its credential refresh scheduler per process."""
+    from alibabacloud_credentials.client import Client
+
+    return Client()
 
 
 class Conflict(RuntimeError):
@@ -8,28 +17,27 @@ class Conflict(RuntimeError):
 
 
 def credentials(context=None):
-    if context is not None:
+    if context is not None and hasattr(context, "credentials"):
         c = context.credentials
         return c.access_key_id, c.access_key_secret, c.security_token
-    from alibabacloud_credentials.client import Client
-
-    c = Client().get_credential()
+    c = credential_client().get_credential()
     return c.access_key_id, c.access_key_secret, c.security_token
 
 
 def oss_auth(context=None):
     """Refresh SDK credentials between multipart requests during long local uploads."""
     import oss2
-    from alibabacloud_credentials.client import Client
     from oss2.credentials import Credentials, CredentialsProvider
 
     if context is not None:
+        # Python 3.12 exposes invocation credentials through environment variables.
+        # Resolve them on each invocation; older runtimes expose context.credentials.
         key, secret, token = credentials(context)
         return oss2.StsAuth(key, secret, token)
 
     class Provider(CredentialsProvider):
         def __init__(self):
-            self.client = Client()
+            self.client = credential_client()
 
         def get_credentials(self):
             c = self.client.get_credential()

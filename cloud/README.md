@@ -4,9 +4,10 @@ Personal transcription with **local scraping/upload** and **Alibaba Cloud proces
 The original local studio on `master` remains independent. This package extracts the
 DashScope result contract and subtitle exporters; it does not install or import Whisper.
 
-Everything in this change is prepared locally. No resources have been deployed and
-no paid recognition has been run. The first deployment still needs an account-level
-smoke test with one short recording.
+Deployment is explicit through `--execute`. The Beijing deployment has been verified
+with authenticated API requests, browser CORS, a synthetic CloudFlow export, and signed
+downloads of JSON/TXT/SRT/VTT. No paid recognition was used for those checks; verify the
+model submission/polling path with one short recording before a large batch.
 
 ## Architecture
 
@@ -158,6 +159,23 @@ rebuild, upload, then use `app --update-stack-id APP_STACK_ID --execute`. The SH
 code key ensures that a changed ZIP changes the function resource. Keep the stack
 IDs; don't create a second stack over the same named resources. Repeating an
 identical deployment request uses the same idempotency token.
+
+New stacks preserve resources on creation failure. After fixing the cause, use
+`app --continue-stack-id STACK_ID --execute` to resume a `CREATE_FAILED` stack.
+For completed stacks, continue using `--update-stack-id`. Inspect `events` and
+`resources` with `--update-stack-id STACK_ID --execute` before recovery. A timed-out
+FC create request can leave an orphan function even when ROS recorded no resource ID;
+check the FC console before recreating a stack with the same function names.
+
+After deployment, check the API without invoking a model:
+
+```powershell
+uv run --env-file cloud/.env.local --project cloud --no-sync python cloud/scripts/smoke.py --url YOUR_API_URL
+```
+
+The runtime package includes compatible PyOpenSSL alongside cryptography to avoid
+mixing with FC's older bundled OpenSSL library. Python 3.12 credentials are resolved
+through the SDK provider rather than assuming `context.credentials` exists.
 
 The storage resources have ROS `DeletionPolicy: Retain`. Replacing or deleting the
 application stack does not delete recordings/results. There is no teardown command

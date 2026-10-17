@@ -194,7 +194,7 @@ def synth(outdir):
         "Logs",
         "ALIYUN::SLS::Project",
         {
-            "Name": sub("${Prefix}-${ALIYUN::AccountId}-${ALIYUN::Region}"),
+            "Name": sub("${Prefix}-${ALIYUN::TenantId}-${ALIYUN::Region}"),
             "Description": "Transcript function logs",
         },
     )
@@ -215,7 +215,7 @@ def synth(outdir):
             ["ots:GetRow", "ots:PutRow", "ots:GetRange"],
             [
                 sub(
-                    "acs:ots:${ALIYUN::Region}:${ALIYUN::AccountId}:instance/${InstanceName}/table/transcript_records"
+                    "acs:ots:${ALIYUN::Region}:${ALIYUN::TenantId}:instance/${InstanceName}/table/transcript_records"
                 )
             ],
         ),
@@ -228,7 +228,7 @@ def synth(outdir):
             ["log:PostLogStoreLogs"],
             [
                 sub(
-                    "acs:log:${ALIYUN::Region}:${ALIYUN::AccountId}:project/${Prefix}-${ALIYUN::AccountId}-${ALIYUN::Region}/logstore/functions"
+                    "acs:log:${ALIYUN::Region}:${ALIYUN::TenantId}:project/${Prefix}-${ALIYUN::TenantId}-${ALIYUN::Region}/logstore/functions"
                 )
             ],
         ),
@@ -254,7 +254,7 @@ def synth(outdir):
         [
             statement(
                 ["fc:InvokeFunction"],
-                [sub("acs:fc:${ALIYUN::Region}:${ALIYUN::AccountId}:functions/${Prefix}-worker*")],
+                [sub("acs:fc:${ALIYUN::Region}:${ALIYUN::TenantId}:functions/${Prefix}-worker*")],
             ),
         ],
     )
@@ -323,7 +323,7 @@ def synth(outdir):
             "Definition": sub(
                 json.dumps(
                     workflow(
-                        "acs:fc:${ALIYUN::Region}:${ALIYUN::AccountId}:functions/${Prefix}-worker/LATEST",
+                        "acs:fc:${ALIYUN::Region}:${ALIYUN::TenantId}:functions/${Prefix}-worker/LATEST",
                         "${Prefix}-parse",
                     )
                 )

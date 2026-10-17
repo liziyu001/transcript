@@ -160,6 +160,19 @@ wheels = [
 ]
 
 [[package]]
+name = "alibabacloud-fc20230330"
+version = "4.8.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "alibabacloud-tea-openapi" },
+    { name = "darabonba-core" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/45/b6/3c82fcf9fbc3b110557efd166a161fc8f35a4c83ec624f8fc50fa8b6a95d/alibabacloud_fc20230330-4.8.3.tar.gz", hash = "sha256:249a364aac6f70804d46e3566ee4dcb6159ef9769615bd56bdb9bff17844325d", size = 103132, upload-time = "2026-10-08T08:18:42.729Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/bb/0a39939a5b02288f7a2fc2be7ca26dfde528d7b8bc93d87d3b2d4c6146cb/alibabacloud_fc20230330-4.8.3-py3-none-any.whl", hash = "sha256:6882eacc6392fa0835fccfd45114821b3e57b2a548f1781ce50850191497b8a5", size = 272441, upload-time = "2026-10-08T08:18:41.639Z" },
+]
+
+[[package]]
 name = "alibabacloud-fnf20190315"
 version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1456,6 +1469,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pyopenssl"
+version = "26.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3f/e8/7325d258199b159eb2c03fe32107533e2832e70e63f4fb88a6aa00023201/pyopenssl-26.4.0.tar.gz", hash = "sha256:28dfcce0162b9211413e26dfbfdf1d24317fbeba18fc93c12400a1856b2a0bc7", size = 182046, upload-time = "2026-08-01T19:50:50.512Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/ad/2cf6d3fa2fae5c79e1ed9960c0d42badd0f94d81dd12b50604cdc839e648/pyopenssl-26.4.0-py3-none-any.whl", hash = "sha256:f0eb0cb2d581d3ad2b9c489468485e7f2ab6727d08401bcf9d824c3caddf3c1c", size = 56026, upload-time = "2026-08-01T19:50:48.94Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1679,6 +1705,7 @@ dependencies = [
     { name = "httpx" },
     { name = "oss2" },
     { name = "pydantic" },
+    { name = "pyopenssl" },
     { name = "tablestore" },
     { name = "uvicorn" },
 ]
@@ -1689,6 +1716,7 @@ dev = [
     { name = "ruff" },
 ]
 infra = [
+    { name = "alibabacloud-fc20230330" },
     { name = "alibabacloud-ros20190910" },
     { name = "ros-cdk-core" },
 ]
@@ -1699,6 +1727,7 @@ ingest = [
 [package.metadata]
 requires-dist = [
     { name = "alibabacloud-credentials", specifier = ">=0.3,<2" },
+    { name = "alibabacloud-fc20230330", marker = "extra == 'infra'", specifier = ">=4,<5" },
     { name = "alibabacloud-fnf20190315", specifier = ">=2,<3" },
     { name = "alibabacloud-ros20190910", marker = "extra == 'infra'", specifier = ">=3,<4" },
     { name = "bilibili-audio-scraper", marker = "extra == 'ingest'", editable = "../audio-scraper" },
@@ -1706,6 +1735,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27,<1" },
     { name = "oss2", specifier = ">=2.19,<3" },
     { name = "pydantic", specifier = ">=2,<3" },
+    { name = "pyopenssl", specifier = ">=26,<27" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8,<10" },
     { name = "ros-cdk-core", marker = "extra == 'infra'", specifier = ">=1,<2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11,<1" },

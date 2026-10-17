@@ -64,5 +64,22 @@ async def invoke_asgi(app, event):
 def api(event, context):
     event = json.loads(event) if isinstance(event, (str, bytes)) else event
     settings = Settings.from_env()
+    headers = {key.lower(): value for key, value in event.get("headers", {}).items()}
+    origin = headers.get("origin")
+    if origin and origin not in (settings.allowed_origin, "https://" + headers.get("host", "")):
+        return {
+            "statusCode": 403,
+            "headers": {"Content-Type": "application/json"},
+            "body": '{"detail":"Origin is not allowed"}',
+            "isBase64Encoded": False,
+        }
     app = create_app(make_service(settings, context), settings)
-    return asyncio.run(invoke_asgi(app, event))
+    response = asyncio.run(invoke_asgi(app, event))
+    # FC adds CORS headers to both preflight and ordinary responses. Duplicating
+    # Allow-Origin makes browsers reject them; origin validation happens above.
+    response["headers"] = {
+        key: value
+        for key, value in response["headers"].items()
+        if not key.lower().startswith("access-control-")
+    }
+    return response

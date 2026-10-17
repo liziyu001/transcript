@@ -8,15 +8,25 @@ version = "0.1.0"
 description = "Personal Alibaba Cloud transcription library and local ingestion"
 requires-python = ">=3.10,<3.14"
 dependencies = [
-  "httpx>=0.27,<1", "pydantic>=2,<3", "fastapi>=0.115,<1",
-  "uvicorn>=0.30,<1", "oss2>=2.19,<3", "tablestore>=6,<7",
-  "alibabacloud-credentials>=0.3,<2", "alibabacloud-fnf20190315>=2,<3",
+  "httpx>=0.27,<1",
+  "pydantic>=2,<3",
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.30,<1",
+  "oss2>=2.19,<3",
+  "tablestore>=6,<7",
+  "alibabacloud-credentials>=0.3,<2",
+  "alibabacloud-fnf20190315>=2,<3",
+  "pyopenssl>=26,<27",
 ]
 
 [project.optional-dependencies]
 ingest = ["bilibili-audio-scraper"]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
-infra = ["ros-cdk-core>=1,<2", "alibabacloud-ros20190910>=3,<4"]
+infra = [
+    "ros-cdk-core>=1,<2",
+    "alibabacloud-ros20190910>=3,<4",
+    "alibabacloud-fc20230330>=4,<5",
+]
 
 [tool.uv.sources]
 bilibili-audio-scraper = { path = "../audio-scraper", editable = true }

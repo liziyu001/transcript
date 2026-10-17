@@ -264,13 +264,18 @@ class Service:
             )
             # Do not log arbitrary SDK exception messages (may contain credentials/signed URLs).
             import logging
+            import traceback
 
             logging.getLogger(__name__).error(
-                "Job %s stage=%s error_type=%s task_saved=%s",
+                "Job %s stage=%s error_type=%s task_saved=%s frames=%s",
                 job_id,
                 stage,
                 type(exc).__name__,
                 bool(job.get("task_id")),
+                [
+                    (frame.filename, frame.lineno, frame.name)
+                    for frame in traceback.extract_tb(exc.__traceback__)
+                ],
             )
         else:
             if job["state"] != "failed":

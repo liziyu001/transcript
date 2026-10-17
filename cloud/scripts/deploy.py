@@ -65,8 +65,12 @@ def main():
     )
     parser.add_argument("--config", type=Path, default=ROOT / "deploy.local.json")
     parser.add_argument("--execute", action="store_true")
-    parser.add_argument(
+    stack_action = parser.add_mutually_exclusive_group()
+    stack_action.add_argument(
         "--update-stack-id", help="Update an existing stack rather than creating one"
+    )
+    stack_action.add_argument(
+        "--continue-stack-id", help="Resume a CREATE_FAILED stack with the current template"
     )
     args = parser.parse_args()
     config = json.loads(args.config.read_text(encoding="utf-8"))
@@ -220,7 +224,13 @@ def main():
                 Certificate=Path(config["certificate_file"]).read_text(),
                 PrivateKey=Path(config["private_key_file"]).read_text(),
             )
-    action = "UpdateStack" if args.update_stack_id else "CreateStack"
+    action = (
+        "ContinueCreateStack"
+        if args.continue_stack_id
+        else "UpdateStack"
+        if args.update_stack_id
+        else "CreateStack"
+    )
     print(f"{action}: {prefix}-{args.stage} in {region}; template {template}")
     if not args.execute:
         print(
@@ -247,10 +257,14 @@ def main():
         "Parameters": [{"ParameterKey": k, "ParameterValue": str(v)} for k, v in params.items()],
         "TimeoutInMinutes": 30,
     }
-    if args.update_stack_id:
+    if args.continue_stack_id:
+        request["StackId"] = args.continue_stack_id
+        request.pop("TimeoutInMinutes")
+    elif args.update_stack_id:
         request["StackId"] = args.update_stack_id
     else:
         request["StackName"] = f"{prefix}-{args.stage}"
+        request["DisableRollback"] = True
     # Structured SDK requests keep secrets out of command-line arguments and local files.
     import hashlib
 
@@ -260,7 +274,10 @@ def main():
         json.dumps(request, sort_keys=True).encode()
     ).hexdigest()
     client = ros_client(region)
-    if args.update_stack_id:
+    if args.continue_stack_id:
+        request.pop("ClientToken")
+        result = client.continue_create_stack(models.ContinueCreateStackRequest().from_map(request))
+    elif args.update_stack_id:
         result = client.update_stack(models.UpdateStackRequest().from_map(request))
     else:
         result = client.create_stack(models.CreateStackRequest().from_map(request))
